@@ -1,0 +1,288 @@
+---
+title: 'Are elevated lactate levels associated with ICU mortality?'
+author: "..."
+date: "January, 2025"
+output:
+  pdf_document: 
+    toc: true
+    toc_depth: 4
+    number_sections: true
+    fig_width: 7
+    fig_height: 5
+    fig_caption: true
+    keep_tex: false
+    latex_engine: xelatex
+    highlight: tango
+    citation_package: natbib
+header-includes:
+- \usepackage{xcolor}
+- \usepackage{framed}
+- \usepackage{listings}
+- \usepackage{fancyhdr}
+- \usepackage{geometry}
+- \usepackage{caption}
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{array}
+- \usepackage{multirow}
+- \usepackage{wrapfig}
+- \usepackage{float}
+- \usepackage{colortbl}
+- \usepackage{pdflscape}
+- \usepackage{tabu}
+- \usepackage{threeparttable}
+- \usepackage{graphicx}
+- \geometry{top=2.5cm, bottom=2.5cm, left=2.5cm, right=2.5cm}
+- \pagestyle{fancy}
+- \fancyfoot[C]{\thepage}
+- \renewcommand{\headrulewidth}{0.4pt}
+- \renewcommand{\footrulewidth}{0.4pt}
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+\newpage
+
+Authors' information
+
+\begin{center}
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Nombre} & Marco Russo \\
+\hline
+\textbf{Email} & mrussorb@uoc.edu \\
+\hline
+\textbf{GitHub} & https://github.com/marcusRB/ \\
+\hline
+\textbf{LinkedIn} & https://www.linkedin.com/in/marcusrb/ \\
+\hline
+\textbf{Fecha} & \today \\
+\hline
+\end{tabular}
+\end{center}
+\begin{center}
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Nombre} & ... \\
+\hline
+\textbf{Email} & ...@...
+ \\
+\hline
+\textbf{GitHub} & https://github.com/ \\
+\hline
+\textbf{LinkedIn} & https://www.linkedin.com/in/ \\
+\hline
+\textbf{Fecha} & \today \\
+\hline
+\end{tabular}
+\end{center}
+\begin{center}
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Nombre} & ... \\
+\hline
+\textbf{Email} & ...@...
+ \\
+\hline
+\textbf{GitHub} & https://github.com/ \\
+\hline
+\textbf{LinkedIn} & https://www.linkedin.com/in/ \\
+\hline
+\textbf{Fecha} & \today \\
+\hline
+\end{tabular}
+\end{center}
+\newpage
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, 
+                      fig.width = 10, fig.height = 6)
+```
+
+# Project overview
+
+**Research Question**: Are elevated lactate levels associated with ICU
+mortality? Study Design: Retrospective cohort study using MIMIC-III
+database Primary Analysis: Association between first lactate measurement
+post-ICU admission and in-hospital mortality
+
+## Data Description
+
+MIMIC-III is a relational database consisting of 26 tables. Tables are
+linked by identifiers which usually have the suffix ‘ID’. For example,
+SUBJECT_ID refers to a unique patient, HADM_ID refers to a unique
+admission to the hospital, and ICUSTAY_ID refers to a unique admission
+to an intensive care unit.
+
+Charted events such as notes, laboratory tests, and fluid balance are
+stored in a series of ‘events’ tables. For example the OUTPUTEVENTS
+table contains all measurements related to output for a given patient,
+while the LABEVENTS table contains laboratory test results for a
+patient.
+
+Tables prefixed with ‘D\_’ are dictionary tables and provide definitions
+for identifiers. For example, every row of CHARTEVENTS is associated
+with a single ITEMID which represents the concept measured, but it does
+not contain the actual name of the measurement. By joining CHARTEVENTS
+and D_ITEMS on ITEMID, it is possible to identify the concept
+represented by a given ITEMID.
+
+Developing the MIMIC data model involved balancing simplicity of
+interpretation against closeness to ground truth. As such, the model is
+a reflection of underlying data sources, modified over iterations of the
+MIMIC database in response to user feedback. Care has been taken to
+avoid making assumptions about the underlying data when carrying out
+transformations, so MIMIC-III closely represents the raw hospital data.
+
+Broadly speaking, five tables are used to define and track patient
+stays: ADMISSIONS; PATIENTS; ICUSTAYS; SERVICES; and TRANSFERS. Another
+five tables are dictionaries for cross-referencing codes against their
+respective definitions: D_CPT; D_ICD_DIAGNOSES; D_ICD_PROCEDURES;
+D_ITEMS; and D_LABITEMS. The remaining tables contain data associated
+with patient care, such as physiological measurements, caregiver
+observations, and billing information.
+
+In some cases it would be possible to merge tables—for example, the
+D_ICD_PROCEDURES and CPTEVENTS tables both contain detail relating to
+procedures and could be combined—but our approach is to keep the tables
+independent for clarity, since the data sources are significantly
+different. Rather than combining the tables within MIMIC data model, we
+suggest researchers develop database views and transforms as
+appropriate.
+
+## MIMIC-III v1.4
+
+The current version of the database is v1.4. When referencing this
+version, we recommend using the full title: MIMIC-III v1.4[^1].
+
+[^1]: Johnson, A., Pollard, T., & Mark, R. (2016). MIMIC-III Clinical
+    Database (version 1.4). PhysioNet. RRID:SCR_007345.
+    <https://doi.org/10.13026/C2XW26>
+
+MIMIC-III v1.4 was released on 2 September 2016. It was a major release
+enhancing data quality and providing a large amount of additional data
+for Metavision patients.
+
+------------------------------------------------------------------------
+
+# Data Extraction & Preparation
+
+```{r include=FALSE}
+# Some libraries and R packages
+if(!require('corrplot')) install.packages('corrplot'); library('corrplot')
+if(!require('tidyverse')) install.packages('tidyverse'); library('tidyverse')
+if(!require('ggplot2')) install.packages('ggplot2'); library('ggplot2')
+if(!require('Rmisc')) install.packages('Rmisc'); library('Rmisc')
+if(!require('dplyr')) install.packages('dplyr'); library('dplyr')
+if(!require('xfun')) install.packages('xfun'); library('xfun')
+if(!require('psych')) install.packages('psych'); library('psych')
+if(!require('visdat')) install.packages('visdat'); library('visdat')
+```
+
+## Database setup, cohort extraction
+
+```{r database setup}
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(lubridate)
+library(readr)
+library(stringr)
+library(ggplot2)
+library(data.table)
+library(odbc)
+library(RMariaDB)
+```
+
+```{r}
+# Get the credentials file
+# It looks like:
+################
+#username=your.user.name
+#password=your.password.assigned
+################
+creds_file = "creds.txt"
+```
+
+```{r}
+# Set the username and password
+creds <- readLines(creds_file)
+cred_list <- setNames(
+  sub(".*=", "", creds),
+  sub("=.*", "", creds)
+)
+```
+
+
+
+```{r}
+con <- dbConnect(
+  drv = RMariaDB::MariaDB(),
+  username = cred_list[["username"]],
+  password = cred_list[["password"]],
+  host = "ehr3.deim.urv.cat",
+  dbname = "mimiciiiv14",
+  port = 3306
+)
+```
+
+
+
+```{r}
+dbListTables(con)
+```
+
+```{r}
+# Check the SQL query
+
+sql <- "
+SELECT
+	SUBJECT_ID
+	,COUNT(*) as N_ADM 
+FROM ADMISSIONS
+GROUP BY SUBJECT_ID
+ORDER BY N_ADM DESC;
+"
+
+dbGetQuery(con, sql) %>% head(10)
+```
+
+
+------------------------------------------------------------------------
+
+## Data cleaning, variable creation
+
+------------------------------------------------------------------------
+
+## Exploratory analysis
+
+------------------------------------------------------------------------
+
+# Statistical Analysis
+
+## Primary analysis (clustering, logistic regression, lineal model, etc., ROC curves)
+
+------------------------------------------------------------------------
+
+## Subgroup analyses, sensitivity analyses
+
+## Create all figures and tables
+
+------------------------------------------------------------------------
+
+# Machine Learning modeling
+
+------------------------------------------------------------------------
+
+# Next steps
+
+------------------------------------------------------------------------
+
+# Conclusions
+
+------------------------------------------------------------------------
+
+# References
+
+------------------------------------------------------------------------
