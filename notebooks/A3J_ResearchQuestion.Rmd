@@ -268,10 +268,11 @@ cohort_query <- "
           END AS icu_dead,
           l.CHARTTIME as lactate_time,
           l.VALUE as lactate_value,
+          l.VALUEUOM as lactate_units,
           l.FLAG as lactate_flag
       FROM icu_ordered
       INNER JOIN LABEVENTS l USING(subject_id, hadm_id)
-      WHERE l.ITEMID = 50813
+      WHERE l.ITEMID = 50813 -- id corresponding to lactate
       AND l.charttime BETWEEN intime AND outtime
       AND l.value is not null
       ORDER BY subject_id, hadm_id, icustay_id, outtime;
@@ -279,10 +280,6 @@ cohort_query <- "
 
 initial_df <- dbGetQuery(con, cohort_query) 
 initial_df %>% glimpse()
-```
-
-```{r}
-summary(initial_df)
 ```
 
 ------------------------------------------------------------------------
@@ -295,12 +292,6 @@ sum(duplicated(initial_df))
 ```
 
 ```{r}
-initial_df %>%
-  filter(lactate_time < intime | lactate_time > outtime) %>%
-  nrow()
-
-```
-```{r}
 
 clean_values_df <- initial_df %>%
   mutate(
@@ -310,10 +301,11 @@ clean_values_df <- initial_df %>%
       str_detect(lactate_value, fixed(">")) | 
       str_detect(toupper(lactate_value), "GREATER THAN") ~ 31,
       
-      TRUE ~ as.numeric(lactate_value) # try to convert to numeric value, samples with numbers and letters will be converted to NA
+      TRUE ~ as.numeric(lactate_value) # Convert to numeric value, 
+      # samples with numbers and letters will be converted to NA
     )
   ) %>%
-  filter(!is.na(lactate_value_num)) # delete whole row if lactate value is null
+  filter(!is.na(lactate_value_num)) # Delete whole row if lactate value is null
 
 
 # Check for suspicious values
@@ -321,12 +313,46 @@ clean_values_df %>%
   filter(lactate_value_num <= 0 | lactate_value_num > 31)
 
 ```
+
+Imputed 'normal' for all missing records in the lactate_flag variable.
+
 ```{r}
-# icu_dead can't be dead if hospital dead is not
+clean_values_df <- clean_values_df %>%
+  mutate(
+    lactate_flag = if_else(is.na(lactate_flag), "normal", lactate_flag)
+  )
+
+
+ggplot(clean_values_df, aes(x = lactate_value_num, fill = lactate_flag)) +
+  geom_histogram(bins = 60, alpha = 0.6, position = "identity", color = "white") +
+  
+  scale_x_log10() +
+  
+  scale_fill_manual(values = c("normal" = "#2ecc71", "abnormal" = "#e74c3c")) +
+  
+  labs(
+    title = "Distribution of Lactate Values by Flag",
+    x = "Lactate Value (mmol/L) - Log Scale",
+    y = "Frequency",
+    fill = "Lactate Flag"
+  ) +
+  
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+    plot.subtitle = element_text(hjust = 0.5),
+    legend.position = "bottom"
+  )
+```
+
+
+Validate mortality coherence 1: icu_dead cannot be true if hospital_dead is false.
+```{r}
 clean_values_df %>%
   filter(icu_dead == 1 & hospital_dead == 0) %>%
   nrow()
 ```
+Validate mortality coherence 2: each subject should have at most one recorded death across ICU and hospital stays.
 ```{r}
 death_counts <- clean_values_df %>%
   group_by(subject_id) %>%
@@ -336,8 +362,9 @@ death_counts <- clean_values_df %>%
   ) %>%
   filter(icu_dead > 1)
 death_counts
-# It appears to be one subject with two wrongly assigned deaths
 ```
+A data inconsistency was identified involving a single subject with two incorrectly assigned mortality flags; these records were manually rectified to ensure data integrity.
+
 ```{r}
 clean_values_df <- clean_values_df %>%
   mutate(
@@ -352,12 +379,13 @@ clean_values_df <- clean_values_df %>%
 ```{r}
 
 ggplot(clean_values_df, aes(lactate_value_num)) +
-  geom_histogram(bins = 50) +
-  scale_x_log10() + # for better visualization and to avoid skewness
-  labs(title = "Distribution of lactate values (log scale)")
+  geom_histogram(bins = 50, fill = "steelblue", color = "white") +
+  scale_x_log10() + 
+  labs(title = "Distribution of lactate values (log scale)") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 
 ```
-Final dataframe for exploratory analysis:
+The final cohort for exploratory analysis comprises 21,016 unique subjects, accounting for 24,622 hospital admissions and 25,743 ICU stays. The dataset includes a total of 128,715 lactate observations, with an average of 5 measurements per ICU stay, providing a robust longitudinal perspective on patient biomarkers.
 ```{r}
 summary(clean_values_df)
 ```
