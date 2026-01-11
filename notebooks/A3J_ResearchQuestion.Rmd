@@ -168,18 +168,6 @@ for Metavision patients.
 
 # Data Extraction & Preparation
 
-```{r include=FALSE}
-# Some libraries and R packages
-if(!require('corrplot')) install.packages('corrplot'); library('corrplot')
-if(!require('tidyverse')) install.packages('tidyverse'); library('tidyverse')
-if(!require('ggplot2')) install.packages('ggplot2'); library('ggplot2')
-if(!require('Rmisc')) install.packages('Rmisc'); library('Rmisc')
-if(!require('dplyr')) install.packages('dplyr'); library('dplyr')
-if(!require('xfun')) install.packages('xfun'); library('xfun')
-if(!require('psych')) install.packages('psych'); library('psych')
-if(!require('visdat')) install.packages('visdat'); library('visdat')
-```
-
 ## Database setup, cohort extraction
 
 ```{r database setup}
@@ -214,8 +202,6 @@ cred_list <- setNames(
 )
 ```
 
-
-
 ```{r}
 con <- dbConnect(
   drv = RMariaDB::MariaDB(),
@@ -227,32 +213,154 @@ con <- dbConnect(
 )
 ```
 
-
-
-```{r}
+```{r, results='hide'}
+#| echo: false
 dbListTables(con)
 ```
 
-```{r}
-# Check the SQL query
+We constructed a cohort at the level of individual lactate measurements
+obtained during ICU stays. Each row in the dataset corresponds to a
+single lactate measurement, and all lactate values recorded during any
+ICU stay were included.
 
-sql <- "
-SELECT
-	SUBJECT_ID
-	,COUNT(*) as N_ADM 
-FROM ADMISSIONS
-GROUP BY SUBJECT_ID
-ORDER BY N_ADM DESC;
+Lactate measurements were assigned to ICU stays based on their
+timestamp: a measurement was linked to an ICU stay only if it occurred
+between the ICU admission (intime) and discharge (outtime) times.
+
+ICU mortality was derived from hospital admission outcomes. For patients
+with multiple ICU stays within the same hospital admission, ICU
+mortality was assigned exclusively to the final ICU stay if the patient
+died during that admission; all preceding ICU stays were labeled as
+non-fatal. This approach allows ICU-level mortality attribution in the
+absence of a direct ICU death indicator. The final cohort comprised
+129,966 lactate measurements, representing multiple ICU stays and
+hospital admissions across patients.
+
+```{r}
+cohort_query <- "
+      WITH icu_ordered AS (
+          SELECT
+              i.subject_id,
+              i.hadm_id,
+              i.icustay_id,
+              i.intime,
+              i.outtime,
+              a.hospital_expire_flag AS hospital_dead,
+              ROW_NUMBER() OVER (
+                  PARTITION BY i.subject_id, i.hadm_id
+                  ORDER BY i.outtime DESC
+              ) AS rn_icu
+          FROM ICUSTAYS i
+          JOIN ADMISSIONS a
+              ON i.hadm_id = a.hadm_id
+      )
+      SELECT 
+      	ROW_NUMBER() OVER (ORDER BY subject_id, hadm_id, icustay_id, charttime) AS row_id,
+          subject_id,
+          hadm_id,
+          icustay_id,
+          intime,
+          outtime,
+          hospital_dead,
+          CASE 
+              WHEN hospital_dead = 1 AND rn_icu = 1 THEN 1
+              ELSE 0
+          END AS icu_dead,
+          l.CHARTTIME as lactate_time,
+          l.VALUE as lactate_value,
+          l.FLAG as lactate_flag
+      FROM icu_ordered
+      INNER JOIN LABEVENTS l USING(subject_id, hadm_id)
+      WHERE l.ITEMID = 50813
+      AND l.charttime BETWEEN intime AND outtime
+      AND l.value is not null
+      ORDER BY subject_id, hadm_id, icustay_id, outtime;
 "
 
-dbGetQuery(con, sql) %>% head(10)
+initial_df <- dbGetQuery(con, cohort_query) 
+initial_df %>% glimpse()
 ```
 
+```{r}
+summary(initial_df)
+```
 
 ------------------------------------------------------------------------
 
 ## Data cleaning, variable creation
 
+```{r}
+# Are there duplicates?
+sum(duplicated(initial_df))
+```
+
+```{r}
+initial_df %>%
+  filter(lactate_time < intime | lactate_time > outtime) %>%
+  nrow()
+
+```
+```{r}
+
+clean_values_df <- initial_df %>%
+  mutate(
+    lactate_value_num = case_when(
+      # For samples containing ">" or "GREATER THAN 30" assign value 31
+      
+      str_detect(lactate_value, fixed(">")) | 
+      str_detect(toupper(lactate_value), "GREATER THAN") ~ 31,
+      
+      TRUE ~ as.numeric(lactate_value) # try to convert to numeric value, samples with numbers and letters will be converted to NA
+    )
+  ) %>%
+  filter(!is.na(lactate_value_num)) # delete whole row if lactate value is null
+
+
+# Check for suspicious values
+clean_values_df %>%
+  filter(lactate_value_num <= 0 | lactate_value_num > 31)
+
+```
+```{r}
+# icu_dead can't be dead if hospital dead is not
+clean_values_df %>%
+  filter(icu_dead == 1 & hospital_dead == 0) %>%
+  nrow()
+```
+```{r}
+death_counts <- clean_values_df %>%
+  group_by(subject_id) %>%
+  summarise(
+    hosp_dead = n_distinct(hadm_id[hospital_dead == 1], na.rm = TRUE),
+    icu_dead  = n_distinct(icustay_id[icu_dead == 1], na.rm = TRUE)
+  ) %>%
+  filter(icu_dead > 1)
+death_counts
+# It appears to be one subject with two wrongly assigned deaths
+```
+```{r}
+clean_values_df <- clean_values_df %>%
+  mutate(
+    # Reassign hospital_dead from first admission
+    hospital_dead = if_else(subject_id == 17796 & hadm_id == 119823, 0, hospital_dead),
+    
+    # Reassign icu_dead from first ICU stay
+    icu_dead = if_else(subject_id == 17796 & hadm_id == 119823, 0, icu_dead)
+  )
+```
+
+```{r}
+
+ggplot(clean_values_df, aes(lactate_value_num)) +
+  geom_histogram(bins = 50) +
+  scale_x_log10() + # for better visualization and to avoid skewness
+  labs(title = "Distribution of lactate values (log scale)")
+
+```
+Final dataframe for exploratory analysis:
+```{r}
+summary(clean_values_df)
+```
 ------------------------------------------------------------------------
 
 ## Exploratory analysis
