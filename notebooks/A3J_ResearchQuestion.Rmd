@@ -165,6 +165,8 @@ for Metavision patients.
 
 ------------------------------------------------------------------------
 
+\newpage
+
 # Data Extraction & Preparation
 
 ## Database setup, cohort extraction
@@ -515,7 +517,10 @@ The final cohort for exploratory analysis comprises 21,016 unique subjects, acco
 ```{r}
 summary(clean_values_df)
 ```
+
 ------------------------------------------------------------------------
+
+\newpage
 
 ## Exploratory analysis
 
@@ -587,6 +592,8 @@ print(missing_df)
 
 ------------------------------------------------------------------------
 
+\newpage
+
 # Statistical Analysis
 
 ## Primary analysis (clustering, logistic regression, lineal model, etc., ROC curves)
@@ -599,17 +606,27 @@ print(missing_df)
 
 ------------------------------------------------------------------------
 
+\newpage
+
 # Machine Learning modeling
 
 ------------------------------------------------------------------------
+
+\newpage
 
 # Next steps
 
 ------------------------------------------------------------------------
 
+\newpage
+
 # Conclusions
 
+## Final thoughts
+
 ------------------------------------------------------------------------
+
+\newpage
 
 # References
 
