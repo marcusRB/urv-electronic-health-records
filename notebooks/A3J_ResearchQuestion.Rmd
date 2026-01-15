@@ -519,6 +519,72 @@ summary(clean_values_df)
 
 ## Exploratory analysis
 
+### Missing values and imputations
+
+After the imputation task the first step is select only the important features to doing the exploratory analysis
+
+```{r}
+names(clean_values_df)
+```
+
+
+```{r}
+eda_columns <- c("subject_id", "dob", "age_icu_entry", "age_icu_exit",
+                 "gender", "hadm_id", "icustay_id", "intime", "outtime",
+                 "hospital_dead", "icu_dead", "lactate_time", "lactate_value_num",
+                 "lactate_units", "lactate_flag", "ck_time", "ck_value_num", "ck_units",
+                 "ck_flag", "bilirubin_time", "bilirubin_value_num", "bilirubin_units",
+                 "bilirubin_flag", "mabp_time", "mabp_value_num", "mabp_units")
+
+eda_df <- clean_values_df %>%
+  select(eda_columns)
+head(eda_df)
+```
+
+Checking the missing values
+
+```{r}
+as.data.frame(eda_df) %>%
+  summarise(across(everything(), ~ sum(is.na(.)))) %>%
+  select(where(~ . > 0))
+```
+
+```{r}
+library(naniar)
+library(ggplot2)
+# Visualize missing values by variable
+
+missing_df <- clean_values_df %>%
+  select(-row_id)
+
+gg_miss_var(missing_df, show_pct = TRUE) +
+labs(title = "Missing Values by Variable in Dataset Subset",
+x = "Variables",
+y = "Proportion of Missing Values")
+```
+```{r}
+library(VIM)
+aggr(missing_df, numbers = FALSE, prop = FALSE, sortVar = TRUE)
+```
+
+```{r}
+# Check missing values
+missing_summary <- sapply(eda_df, function(x) sum(is.na(x)))
+missing_df <- data.frame(
+    Column = names(missing_summary),
+    Missing_Count = missing_summary,
+    Missing_Percent = round(missing_summary/nrow(eda_df)*100, 2)
+  ) %>%
+  arrange(desc(Missing_Count))
+
+print(missing_df)
+```
+
+
+
+
+
+
 ------------------------------------------------------------------------
 
 # Statistical Analysis
