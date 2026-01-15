@@ -1,0 +1,824 @@
+---
+title: 'Are elevated lactate levels associated with ICU mortality?'
+author: "..."
+date: "January, 2025"
+output:
+  pdf_document: 
+    toc: true
+    toc_depth: 4
+    number_sections: true
+    fig_width: 7
+    fig_height: 5
+    fig_caption: true
+    keep_tex: false
+    latex_engine: xelatex
+    highlight: tango
+    citation_package: natbib
+header-includes:
+- \usepackage{xcolor}
+- \usepackage{framed}
+- \usepackage{listings}
+- \usepackage{fancyhdr}
+- \usepackage{geometry}
+- \usepackage{caption}
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{array}
+- \usepackage{multirow}
+- \usepackage{wrapfig}
+- \usepackage{float}
+- \usepackage{colortbl}
+- \usepackage{pdflscape}
+- \usepackage{tabu}
+- \usepackage{threeparttable}
+- \usepackage{graphicx}
+- \geometry{top=2.5cm, bottom=2.5cm, left=2.5cm, right=2.5cm}
+- \pagestyle{fancy}
+- \fancyfoot[C]{\thepage}
+- \renewcommand{\headrulewidth}{0.4pt}
+- \renewcommand{\footrulewidth}{0.4pt}
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+\newpage
+
+Authors' information
+
+\begin{center}
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Nombre} & Johanna Ursula Albers \\
+\hline
+\textbf{Email} & johanna.albers@estudiants.urv.cat\\
+\hline
+\textbf{GitHub} & https://github.com/ \\
+\hline
+\textbf{LinkedIn} & https://www.linkedin.com/in/ \\
+\hline
+\textbf{Fecha} & \today \\
+\hline
+\end{tabular}
+\end{center}
+\begin{center}
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Nombre} & Marco Russo \\
+\hline
+\textbf{Email} & mrussorb@uoc.edu \\
+\hline
+\textbf{GitHub} & https://github.com/marcusRB/ \\
+\hline
+\textbf{LinkedIn} & https://www.linkedin.com/in/marcusrb/ \\
+\hline
+\textbf{Fecha} & \today \\
+\hline
+\end{tabular}
+\end{center}
+\begin{center}
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Nombre} & Noa-Sibila Janer Oliver \\
+\hline
+\textbf{Email} & noa-sibila.janer@estudiants.urv.cat \\
+\hline
+\textbf{GitHub} & https://github.com/ \\
+\hline
+\textbf{LinkedIn} & https://www.linkedin.com/in/ \\
+\hline
+\textbf{Fecha} & \today \\
+\hline
+\end{tabular}
+\end{center}
+\newpage
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, 
+                      fig.width = 10, fig.height = 6)
+```
+
+# Project overview
+
+**Research Question**: Are elevated lactate levels associated with ICU
+mortality? Study Design: Retrospective cohort study using MIMIC-III
+database Primary Analysis: Association between first lactate measurement
+post-ICU admission and in-hospital mortality
+
+## Data Description
+
+MIMIC-III is a relational database consisting of 26 tables. Tables are
+linked by identifiers which usually have the suffix ‘ID’. For example,
+SUBJECT_ID refers to a unique patient, HADM_ID refers to a unique
+admission to the hospital, and ICUSTAY_ID refers to a unique admission
+to an intensive care unit.
+
+Charted events such as notes, laboratory tests, and fluid balance are
+stored in a series of ‘events’ tables. For example the OUTPUTEVENTS
+table contains all measurements related to output for a given patient,
+while the LABEVENTS table contains laboratory test results for a
+patient.
+
+Tables prefixed with ‘D\_’ are dictionary tables and provide definitions
+for identifiers. For example, every row of CHARTEVENTS is associated
+with a single ITEMID which represents the concept measured, but it does
+not contain the actual name of the measurement. By joining CHARTEVENTS
+and D_ITEMS on ITEMID, it is possible to identify the concept
+represented by a given ITEMID.
+
+Developing the MIMIC data model involved balancing simplicity of
+interpretation against closeness to ground truth. As such, the model is
+a reflection of underlying data sources, modified over iterations of the
+MIMIC database in response to user feedback. Care has been taken to
+avoid making assumptions about the underlying data when carrying out
+transformations, so MIMIC-III closely represents the raw hospital data.
+
+Broadly speaking, five tables are used to define and track patient
+stays: ADMISSIONS; PATIENTS; ICUSTAYS; SERVICES; and TRANSFERS. Another
+five tables are dictionaries for cross-referencing codes against their
+respective definitions: D_CPT; D_ICD_DIAGNOSES; D_ICD_PROCEDURES;
+D_ITEMS; and D_LABITEMS. The remaining tables contain data associated
+with patient care, such as physiological measurements, caregiver
+observations, and billing information.
+
+In some cases it would be possible to merge tables—for example, the
+D_ICD_PROCEDURES and CPTEVENTS tables both contain detail relating to
+procedures and could be combined—but our approach is to keep the tables
+independent for clarity, since the data sources are significantly
+different. Rather than combining the tables within MIMIC data model, we
+suggest researchers develop database views and transforms as
+appropriate.
+
+## MIMIC-III v1.4
+
+The current version of the database is v1.4. When referencing this
+version, we recommend using the full title: MIMIC-III v1.4[^1].
+
+[^1]: Johnson, A., Pollard, T., & Mark, R. (2016). MIMIC-III Clinical
+    Database (version 1.4). PhysioNet. RRID:SCR_007345.
+    <https://doi.org/10.13026/C2XW26>
+
+MIMIC-III v1.4 was released on 2 September 2016. It was a major release
+enhancing data quality and providing a large amount of additional data
+for Metavision patients.
+
+------------------------------------------------------------------------
+
+\newpage
+
+# Data Extraction & Preparation
+
+## Database setup, cohort extraction
+
+```{r database setup}
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(lubridate)
+library(readr)
+library(stringr)
+library(ggplot2)
+library(data.table)
+library(odbc)
+library(RMariaDB)
+```
+
+```{r}
+# Get the credentials file
+# It looks like:
+################
+#username=your.user.name
+#password=your.password.assigned
+################
+creds_file = "creds.txt"
+```
+
+```{r}
+# Set the username and password
+creds <- readLines(creds_file)
+cred_list <- setNames(
+  sub(".*=", "", creds),
+  sub("=.*", "", creds)
+)
+```
+
+```{r}
+con <- dbConnect(
+  drv = RMariaDB::MariaDB(),
+  username = cred_list[["username"]],
+  password = cred_list[["password"]],
+  host = "ehr3.deim.urv.cat",
+  dbname = "mimiciiiv14",
+  port = 3306
+)
+```
+
+```{r, results='hide'}
+#| echo: false
+dbListTables(con)
+```
+
+We constructed a cohort at the level of individual ICU stays. Each row
+in the dataset corresponds to a single ICU stay. The most important
+measurement, the first lactate measurement after the ICU admission is
+included.
+
+Lactate measurements were assigned to ICU stays based on their
+timestamp: a measurement was linked to an ICU stay only if it occurred
+between the ICU admission (intime) and 24h after.
+
+ICU mortality was derived from hospital admission outcomes. For patients
+with multiple ICU stays within the same hospital admission, ICU
+mortality was assigned exclusively to the final ICU stay if the patient
+died during that admission; all preceding ICU stays were labeled as
+non-fatal. This approach allows ICU-level mortality attribution in the
+absence of a direct ICU death indicator. The final cohort comprised
+129,966 lactate measurements, representing multiple ICU stays and
+hospital admissions across patients.
+
+Further confounding variables are also included: age, gender, creatine
+kinase, bilirubin and mean arterial blood pressure (map). The inlcuded
+measurements are the first measurements in the first 24 h after the ICU
+admission.
+
+```{r}
+library(DBI)
+dbExecute(con, "SET SQL_BIG_SELECTS=1;")
+```
+
+```{r}
+cohort_query <- "
+        WITH icu_ordered AS (
+        SELECT
+            i.subject_id,
+            i.hadm_id,
+            i.icustay_id,
+            i.intime,
+            i.outtime,
+            a.hospital_expire_flag AS hospital_dead,
+            ROW_NUMBER() OVER (
+                PARTITION BY i.subject_id, i.hadm_id
+                ORDER BY i.outtime DESC
+            ) AS rn_icu
+        FROM ICUSTAYS i
+        JOIN ADMISSIONS a
+            ON i.hadm_id = a.hadm_id
+    ),
+    lactate_first AS (
+        SELECT
+            io.subject_id,
+            io.hadm_id,
+            io.icustay_id,
+            l.charttime as lactate_time,
+            l.value as lactate_value,
+            l.valuenum as lactate_value_num,
+            l.valueuom as lactate_units,
+            l.flag as lactate_flag,
+            ROW_NUMBER() OVER (
+                PARTITION BY io.icustay_id
+                ORDER BY l.charttime ASC
+            ) AS rn
+        FROM LABEVENTS l
+        INNER JOIN icu_ordered io USING(subject_id, hadm_id)
+        WHERE l.itemid = 50813
+          AND l.value IS NOT NULL
+          AND l.charttime BETWEEN io.intime AND (io.intime + INTERVAL '24' HOUR)
+    ),
+    ck_first AS (
+        SELECT
+            io.subject_id,
+            io.hadm_id,
+            io.icustay_id,
+            l.charttime as ck_time,
+            l.value as ck_value,
+            l.valuenum as ck_value_num,
+            l.valueuom as ck_units,
+            l.flag as ck_flag,
+            ROW_NUMBER() OVER (
+                PARTITION BY io.icustay_id
+                ORDER BY l.charttime ASC
+            ) AS rn
+        FROM LABEVENTS l
+        INNER JOIN icu_ordered io USING(subject_id, hadm_id)
+        WHERE l.ITEMID = 50910
+          AND l.charttime BETWEEN io.intime AND (io.intime + INTERVAL '24' HOUR)
+    ),
+    bilirubin_first AS (
+        SELECT
+            io.subject_id,
+            io.hadm_id,
+            io.icustay_id,
+            l.charttime as bilirubin_time,
+            l.value as bilirubin_value,
+            l.valuenum as bilirubin_value_num,
+            l.valueuom as bilirubin_units,
+            l.flag as bilirubin_flag,
+            ROW_NUMBER() OVER (
+                PARTITION BY io.icustay_id
+                ORDER BY l.charttime ASC
+            ) AS rn
+        FROM LABEVENTS l
+        INNER JOIN icu_ordered io USING(subject_id, hadm_id)
+        WHERE l.ITEMID = 50885
+          AND l.charttime BETWEEN io.intime AND (io.intime + INTERVAL '24' HOUR)
+    ),
+    mabp_first AS (
+        SELECT
+            io.subject_id,
+            io.hadm_id,
+            io.icustay_id,
+            c.CHARTTIME as mabp_time,
+            c.value as mabp_value,
+            c.valuenum as mabp_value_num,
+            c.valueuom as mabp_units,
+            ROW_NUMBER() OVER (
+                PARTITION BY io.icustay_id
+                ORDER BY c.charttime ASC
+            ) AS rn
+        FROM CHARTEVENTS c
+        INNER JOIN icu_ordered io USING(subject_id, hadm_id, icustay_id)
+        WHERE c.itemid = 220052
+          AND c.valuenum IS NOT NULL
+          AND c.charttime BETWEEN io.intime AND (io.intime + INTERVAL '24' HOUR)
+    ),
+    icu_with_lactate AS (
+        SELECT DISTINCT subject_id, hadm_id, icustay_id
+        FROM lactate_first
+        WHERE rn = 1
+    )
+    SELECT
+        ROW_NUMBER() OVER (ORDER BY iu.subject_id, iu.hadm_id, iu.icustay_id) AS row_id,
+        iu.subject_id,
+        p.dob,
+        YEAR(iu.intime) - YEAR(p.DOB) AS age_icu_entry,
+        YEAR(iu.outtime) - YEAR(p.DOB) AS age_icu_exit,
+        p.gender,
+        iu.hadm_id,
+        iu.icustay_id,
+        iu.intime,
+        iu.outtime,
+        iu.hospital_dead,
+        CASE
+            WHEN iu.hospital_dead = 1 AND iu.rn_icu = 1 THEN 1
+            ELSE 0
+        END AS icu_dead,
+        lf.lactate_time,
+        lf.lactate_value,
+        lf.lactate_value_num,
+        lf.lactate_units,
+        lf.lactate_flag,
+        ck.ck_time,
+        ck.ck_value,
+        ck.ck_value_num,
+        ck.ck_units,
+        ck.ck_flag,
+        bil.bilirubin_time,
+        bil.bilirubin_value,
+        bil.bilirubin_value_num,
+        bil.bilirubin_units,
+        bil.bilirubin_flag,
+        mb.mabp_time,
+        mb.mabp_value,
+        mb.mabp_value_num,
+        mb.mabp_units
+    FROM icu_ordered iu
+    INNER JOIN icu_with_lactate iwl ON iwl.subject_id = iu.subject_id 
+        AND iwl.hadm_id = iu.hadm_id 
+        AND iwl.icustay_id = iu.icustay_id
+    LEFT JOIN lactate_first lf ON lf.subject_id = iu.subject_id 
+        AND lf.hadm_id = iu.hadm_id 
+        AND lf.icustay_id = iu.icustay_id
+        AND lf.rn = 1
+    LEFT JOIN ck_first ck ON ck.subject_id = iu.subject_id 
+        AND ck.hadm_id = iu.hadm_id 
+        AND ck.icustay_id = iu.icustay_id
+        AND ck.rn = 1
+    LEFT JOIN bilirubin_first bil ON bil.subject_id = iu.subject_id 
+        AND bil.hadm_id = iu.hadm_id 
+        AND bil.icustay_id = iu.icustay_id
+        AND bil.rn = 1
+    LEFT JOIN mabp_first mb ON mb.subject_id = iu.subject_id 
+        AND mb.hadm_id = iu.hadm_id 
+        AND mb.icustay_id = iu.icustay_id
+        AND mb.rn = 1
+    LEFT JOIN PATIENTS p ON p.subject_id = iu.subject_id
+    ORDER BY iu.subject_id, iu.hadm_id, iu.icustay_id;
+"
+
+initial_df <- dbGetQuery(con, cohort_query) 
+initial_df %>% glimpse()
+```
+
+------------------------------------------------------------------------
+
+## Data cleaning
+
+First we checked the data for duplictaes. No duplicates were found.
+
+```{r}
+# Are there duplicates?
+sum(duplicated(initial_df))
+```
+
+We only kept observations, which are greater then 0 mmol/L, made sure
+that all lactate values are numeric and checked for suspicious values.
+
+```{r}
+
+clean_values_df <- initial_df %>%
+  mutate(
+    lactate_value_num = case_when(
+      # For samples containing ">" or "GREATER THAN 30" assign value 31
+      
+      str_detect(lactate_value, fixed(">")) | 
+      str_detect(toupper(lactate_value), "GREATER THAN") ~ 31,
+      
+      TRUE ~ as.numeric(lactate_value) # Convert to numeric value, 
+      # samples with numbers and letters will be converted to NA
+    )
+  ) %>%
+  filter(!is.na(lactate_value_num)) # Delete whole row if lactate value is null
+
+
+# Check for suspicious values
+clean_values_df %>%
+  filter(lactate_value_num <= 0 | lactate_value_num > 31)
+
+```
+
+We verified the logical consistency of mortality indicators by
+confirming that ICU death did not occur in the absence of in-hospital
+death.
+
+```{r}
+clean_values_df %>%
+  filter(icu_dead == 1 & hospital_dead == 0) %>%
+  nrow()
+```
+
+We assessed mortality consistency at the patient level by confirming
+that each subject had at most one recorded ICU death across all ICU
+stays.
+
+```{r}
+death_counts <- clean_values_df %>%
+  group_by(subject_id) %>%
+  summarise(
+    hosp_dead = n_distinct(hadm_id[hospital_dead == 1], na.rm = TRUE),
+    icu_dead  = n_distinct(icustay_id[icu_dead == 1], na.rm = TRUE)
+  ) %>%
+  filter(icu_dead > 1)
+death_counts
+```
+
+A data inconsistency was identified involving a single subject with two
+incorrectly assigned mortality flags; these records were manually
+rectified to ensure data integrity.
+
+```{r}
+clean_values_df <- clean_values_df %>%
+  mutate(
+    # Reassign hospital_dead from first admission
+    hospital_dead = if_else(subject_id == 17796 & hadm_id == 119823, 0, hospital_dead),
+    
+    # Reassign icu_dead from first ICU stay
+    icu_dead = if_else(subject_id == 17796 & hadm_id == 119823, 0, icu_dead)
+  )
+```
+
+For our analysis, we will only need the following columns: icustay_id,
+age_icu_exit, gender, icu_dead, lactate_value_num, ck_value_num,
+bilirubin_value_num, mabp_value_num. Regeatding the age, we chose the
+age exiting the ICU, because it is the age of death or survival. These
+columns will be defined in analysis_df.
+
+Laboratory abnormality flags were excluded from analysis, as continuous
+laboratory measurements provide greater informational content and allow
+more precise modeling than qualitative classifications.
+
+```{r}
+clean_values_df <- clean_values_df %>%
+  select(
+    icustay_id, age_icu_exit, gender, icu_dead, lactate_value_num, ck_value_num, bilirubin_value_num, mabp_value_num
+  )
+
+head(clean_values_df)
+```
+
+```{r}
+summary(clean_values_df)
+```
+
+Creatine kinase (CK) and bilirubin values were inspected for
+plausibility. Although both variables showed highly skewed distributions
+and substantial missingness, extreme values were considered clinically
+plausible (e.g., severe rhabdomyolysis for CK and advanced liver failure
+for bilirubin). Therefore, no values were removed during data cleaning.
+
+Due to de-identification procedures in MIMIC-III, patients aged 89 years
+or older have artificially shifted dates of birth. Therefore me have a
+maximum of 311 in the column age_icu_exit. Age values exceeding 89 years
+were therefore capped at 90 years for analysis.
+
+```{r}
+clean_values_df <- clean_values_df %>%
+  mutate(
+    age_icu_exit = if_else(age_icu_exit > 89, 90, age_icu_exit)
+  )
+```
+
+Physiologically implausible mean arterial blood pressure values (\<30 or
+\>200 mmHg) were set to missing. This will be our final step before the
+EDA, so we will simplify the name of the data frame to ade_df.
+
+```{r}
+eda_df <- clean_values_df %>%
+  mutate(
+    mabp_value_num = if_else(
+      mabp_value_num < 30 | mabp_value_num > 200,
+      NA_real_,
+      mabp_value_num
+    )
+  )
+```
+
+------------------------------------------------------------------------
+
+\newpage
+
+## Exploratory analysis
+
+```{r}
+dim(eda_df)
+```
+
+```{r}
+summary(eda_df)
+```
+
+The data frame comprises 22,302 ICU stays, including lactate
+observations, gender and age, providing a robust longitudinal
+perspective on patient biomarkers.
+
+We describe which patients are in our data set.
+
+```{r}
+table(eda_df$gender)
+table(clean_values_df$icu_dead)
+prop.table(table(clean_values_df$icu_dead))
+```
+
+We analyse the distribution of the lactate value.
+
+```{r}
+# Show the distribution of lactate values
+ggplot(eda_df, aes(lactate_value_num)) +
+  geom_histogram(bins = 50, fill = "steelblue", color = "white") + 
+  labs(title = "Distribution of lactate values") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+We add a column with the log-transformation of the lactate measurment
+because the values are skewed.
+
+```{r}
+eda_df <- eda_df %>%
+  mutate(
+    log_lactate = log(lactate_value_num)
+  )
+```
+
+```{r}
+# Show the distribution of lactate values (log scale)
+ggplot(eda_df, aes(log_lactate)) +
+  geom_histogram(bins = 50, fill = "steelblue", color = "white") + 
+  labs(title = "Distribution of lactate values (log scale)") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+```
+
+We analyse the distribution of confounding variables.
+
+```{r}
+# Show the distribution of bilirubin values
+ggplot(eda_df, aes(bilirubin_value_num)) +
+  geom_histogram(bins = 50, fill = "steelblue", color = "white") + 
+  labs(title = "Distribution of creatine bilirubin values") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+```{r}
+# Show the distribution of ck values
+ggplot(eda_df, aes(ck_value_num)) +
+  geom_histogram(bins = 50, fill = "steelblue", color = "white") + 
+  labs(title = "Distribution of creatine kinase values") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+Although creatine kinase and bilirubin measurements exhibited extreme
+high values, observed concentrations were within clinically plausible
+ranges and were therefore retained.The values exhibited extreme right
+skew and were therefore log-transformed. 0,01 was added to
+bilirubin_value_num in case bilirubin_value_num = 0.
+
+```{r}
+eda_df <- eda_df %>%
+  mutate(
+    log_ck = log(ck_value_num),
+    log_bilirubin = log(bilirubin_value_num + 0.01)
+  )
+```
+
+```{r}
+# Show the distribution of ck values (log scale)
+ggplot(eda_df, aes(log_ck)) +
+  geom_histogram(bins = 50, fill = "steelblue", color = "white") + 
+  labs(title = "Distribution of ck values (log scale)") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+```
+
+```{r}
+# Show the distribution of bilirubin values (log scale)
+ggplot(eda_df, aes(log_bilirubin)) +
+  geom_histogram(bins = 50, fill = "steelblue", color = "white") + 
+  labs(title = "Distribution of bilirubin values (log scale)") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+```
+
+```{r}
+# Show the distribution of mabp values
+ggplot(eda_df, aes(mabp_value_num)) +
+  geom_histogram(bins = 50, fill = "steelblue", color = "white") + 
+  labs(title = "Distribution of mabp values") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+We examined the association between log-transformed lactate levels and
+ICU mortality, which constituted the primary relationship of interest.
+
+```{r}
+boxplot(log_lactate ~ icu_dead,
+        data = eda_df,
+        ylab = "Lactate",
+        xlab = "ICU Death")
+```
+
+### Missing values and imputations
+
+Checking the missing values
+
+```{r}
+as.data.frame(eda_df) %>%
+  summarise(across(everything(), ~ sum(is.na(.)))) %>%
+  select(where(~ . > 0))
+```
+
+```{r}
+library(naniar)
+library(ggplot2)
+# Visualize missing values by variable
+
+missing_df <- eda_df %>%
+  select(-icustay_id)
+
+gg_miss_var(missing_df, show_pct = TRUE) +
+labs(title = "Missing Values by Variable in Dataset Subset",
+x = "Variables",
+y = "Proportion of Missing Values")
+```
+
+```{r}
+library(VIM)
+aggr(missing_df, numbers = FALSE, prop = FALSE, sortVar = TRUE)
+```
+
+```{r}
+# Check missing values
+missing_summary <- sapply(eda_df, function(x) sum(is.na(x)))
+missing_df <- data.frame(
+    Column = names(missing_summary),
+    Missing_Count = missing_summary,
+    Missing_Percent = round(missing_summary/nrow(eda_df)*100, 2)
+  ) %>%
+  arrange(desc(Missing_Count))
+
+print(missing_df)
+```
+Several covariates exhibited substantial missingness, most notably mean arterial blood pressure (73.7%), creatine kinase (58.8%), and bilirubin (56.6%). As a result, the inclusion of these variables as confounders in multivariable models was limited. However, the primary exposure (lactate) and outcome (ICU mortality), as well as key demographic variables, were complete. Missingness was documented and explored during exploratory analysis, and no imputation was performed.
+
+## Correlations / collinearity
+
+```{r}
+cor(
+  eda_df %>%
+    select(log_lactate,
+           mabp_value_num,
+           log_bilirubin,
+           log_ck),
+  #Only use rows where all selected variables are observed (no NA values)
+  use = "complete.obs"
+)
+```
+Correlations among continuous predictors were weak, indicating no evidence of problematic collinearity.
+
+## EDA Summary
+
+Based on exploratory data analysis, lactate was retained as the primary exposure variable and modeled on the log scale due to right-skewed distributions. Creatine kinase and bilirubin were likewise log-transformed prior to analysis. Mean arterial blood pressure was retained on the original scale after removal of physiologically implausible values. Laboratory abnormality flags were excluded, as quantitative measurements provided greater informational content. Correlation analysis indicated no problematic collinearity among continuous predictors. Variables with substantial missingness were considered as secondary confounders, and no imputation was performed.
+
+------------------------------------------------------------------------
+
+\newpage
+
+# Statistical Analysis
+
+We define the data frame for this part as analysis_df.
+
+```{r}
+analysis_df <- eda_df %>%
+  select(
+    icustay_id, age_icu_exit, gender, icu_dead, log_lactate, log_ck, log_bilirubin, mabp_value_num
+  )
+
+head(analysis_df)
+```
+
+## Fit the main (core) model
+
+```{r}
+model_main <- glm(
+  icu_dead ~ log_lactate + age_icu_exit + gender,
+  data = analysis_df,
+  family = binomial
+)
+summary(model_main)
+```
+In multivariable logistic regression adjusted for age and gender, higher log-transformed lactate levels were strongly associated with increased ICU mortality (OR ≈ 2.8 per unit increase in log-lactate, p < 0.001). Age was independently associated with mortality, while no significant association with gender was observed.
+
+## Fit the model with all variables
+
+This tests robustness to confounding.
+
+```{r}
+model_adjusted <- glm(
+  icu_dead ~ log_lactate + age_icu_exit + gender +
+             mabp_value_num + log_bilirubin + log_ck,
+  data = analysis_df,
+  family = binomial
+)
+summary(model_adjusted)
+```
+After adjustment for age, gender, mean arterial blood pressure, bilirubin, and creatine kinase, higher log-transformed lactate levels remained strongly associated with increased ICU mortality (OR ≈ 2.6 per unit increase in log-lactate).
+
+MAP was not independently associated with ICU mortality after adjustment.
+
+Higher bilirubin levels were independently associated with increased ICU mortality, consistent with liver dysfunction severity.
+
+No independent association between creatine kinase and ICU mortality was observed after adjustment.
+
+In a multivariable logistic regression adjusted for age and gender, higher log-transformed lactate levels were strongly associated with increased ICU mortality (OR ≈ 2.8). This association remained robust after additional adjustment for mean arterial blood pressure, bilirubin, and creatine kinase (OR ≈ 2.6), although the fully adjusted model was restricted to patients with complete data on all covariates.
+
+##Odds Ratio
+
+```{r}
+exp(cbind(
+  OR = coef(model_main),
+  confint(model_main)
+))
+```
+A one-unit increase in log-transformed lactate was associated with a 2.82-fold increase in the odds of ICU mortality (95% CI 2.66–2.99).
+
+No subgroup analyses were performed due to the observational nature of the study and the absence of pre-specified effect modification hypotheses.
+
+------------------------------------------------------------------------
+
+## Create all figures and tables
+
+------------------------------------------------------------------------
+
+\newpage
+
+# Machine Learning modeling
+
+------------------------------------------------------------------------
+
+\newpage
+
+# Next steps
+
+------------------------------------------------------------------------
+
+\newpage
+
+# Conclusions
+
+## Final thoughts
+
+------------------------------------------------------------------------
+
+\newpage
+
+# References
+
+------------------------------------------------------------------------
