@@ -102,8 +102,12 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
 # Project overview
 
 **Research Question**: Are elevated lactate levels associated with ICU
-mortality? Study Design: Retrospective cohort study using MIMIC-III
-database Primary Analysis: Association between first lactate measurement
+mortality? 
+
+**Study Design**: Retrospective cohort study using MIMIC-III
+database
+
+**Primary Analysis**: Association between first lactate measurement
 post-ICU admission and in-hospital mortality
 
 ## Data Description
@@ -405,6 +409,12 @@ initial_df <- dbGetQuery(con, cohort_query)
 initial_df %>% glimpse()
 ```
 
+```{r}
+# Disconnect from the database
+dbDisconnect(con)
+```
+
+
 ------------------------------------------------------------------------
 
 ## Data cleaning, variable creation
@@ -644,6 +654,12 @@ EXPLAIN WHY WE CANNOT TO AFFORD THIS SECTION DUE DATA LEAKAGE
 
 ##############
 
+```{r}
+complete_data <- eda_df %>% 
+  na.omit()
+cat("Complete cases:", nrow(complete_data), "of", nrow(clean_values_df),
+"(", round(100*nrow(complete_data)/nrow(clean_values_df), 2), "%)\n")
+```
 
 
 ------------------------------------------------------------------------
@@ -690,6 +706,52 @@ summary(imputed_df)
 ```
 
 
+```{r}
+names(imputed_df)
+```
+
+```{r}
+ml_columns <- c("subject_id", "age_icu_entry","gender","icu_dead","lactate_time",
+                "lactate_value_num","lactate_flag", "ck_value_num","ck_flag",
+                "bilirubin_value_num","bilirubin_flag","mabp_value_num","mabp_units"
+)
+ml_df <- imputed_df %>%
+  select(ml_columns)
+``` 
+
+
+```{r}
+head(ml_df)
+```
+
+```{r}
+# Proportion table by gender 0=F 1=M
+prop.table(table(ifelse(ml_df$gender == 'F', 0, 1)))*100
+```
+
+
+```{r}
+# Proportion table by lactate_flag 0=normal, 1=abnormal
+prop.table(table(ifelse(ml_df$lactate_flag == 'normal', 0, 1)))*100
+```
+
+
+```{r}
+# Proportion table by bilirubin_flag 0=normal, 1=abnormal
+prop.table(table(ifelse(ml_df$bilirubin_flag == 'normal', 0, 1)))*100
+```
+
+
+```{r}
+# Proportion table by ck_flag 0=normal, 1=abnormal
+prop.table(table(ifelse(ml_df$ck_flag == 'normal', 0, 1)))*100
+```
+
+
+```{r}
+# Proportion table by icu_dead 0=alive, 1=dead
+prop.table(table(ml_df$icu_dead))*100
+```
 
 
 ------------------------------------------------------------------------
