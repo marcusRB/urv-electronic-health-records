@@ -237,128 +237,167 @@ absence of a direct ICU death indicator. The final cohort comprised
 hospital admissions across patients.
 
 ```{r}
+library(DBI)
+dbExecute(con, "SET SQL_BIG_SELECTS=1;")
+```
+
+```{r}
 cohort_query <- "
         WITH icu_ordered AS (
-          SELECT
-              i.subject_id,
-              i.hadm_id,
-              i.icustay_id,
-              i.intime,
-              i.outtime,
-              a.hospital_expire_flag AS hospital_dead,
-              ROW_NUMBER() OVER (
-                  PARTITION BY i.subject_id, i.hadm_id
-                  ORDER BY i.outtime DESC
-              ) AS rn_icu
-          FROM ICUSTAYS i
-          JOIN ADMISSIONS a
-              ON i.hadm_id = a.hadm_id
-      ),
-      lactate_ranked AS (
-          SELECT
-              l.subject_id,
-              l.hadm_id,
-              io.icustay_id,
-              dl.LABEL as measurement_label,
-              l.charttime as measurement_time,
-              l.value as measurement_value,
-              l.valuenum as measurement_value_num,
-              l.valueuom as measurement_units,
-              l.flag as measurement_flag,
-              ROW_NUMBER() OVER (
-                  PARTITION BY io.icustay_id
-                  ORDER BY l.charttime ASC
-              ) AS rn_measurement
-          FROM LABEVENTS l
-          LEFT JOIN D_LABITEMS dl USING(ITEMID)
-          INNER JOIN icu_ordered io USING(subject_id, hadm_id)
-          WHERE l.itemid = 50813 -- Id corresponding to lactate
-            AND l.value IS NOT NULL
-            AND l.charttime BETWEEN io.intime AND io.outtime -- Filter for lab events occurring strictly during the ICU stay
-      ),
-      confounders AS (
-          SELECT
-              l.subject_id,
-              l.hadm_id,
-              io.icustay_id,
-              dl.LABEL as measurement_label,
-              l.charttime as measurement_time,
-              l.value as measurement_value,
-              l.valuenum as measurement_value_num,
-              l.valueuom as measurement_units,
-              l.flag as measurement_flag,
-              ROW_NUMBER() OVER (
-                  PARTITION BY io.icustay_id, l.itemid
-                  ORDER BY l.charttime ASC
-              ) AS rn_measurement
-          FROM LABEVENTS l
-          LEFT JOIN D_LABITEMS dl USING(ITEMID)
-          INNER JOIN icu_ordered io USING(subject_id, hadm_id)
-          WHERE l.ITEMID IN (50910, 50885) -- 50910 for 'Creatine Kinase (CK)' and 50885 for 'Bilirubin, Total'
-          AND l.charttime BETWEEN io.intime AND (io.intime + INTERVAL '24' HOUR) -- Filter for lab events occurring strictly during the first 24h in the ICU stay
-      ),
-      mabp AS (
         SELECT
-          c.subject_id,
-              c.hadm_id,
-              io.icustay_id,
-              di.label as measurement_label,
-              c.CHARTTIME as measurement_time,
-              c.value as measurement_value,
-              c.valuenum as measurement_value_num,
-              c.valueuom as measurement_units,
-              Null as measurement_flag,
-              ROW_NUMBER() OVER (
-                  PARTITION BY io.icustay_id, c.itemid
-                  ORDER BY c.charttime ASC
-              ) AS rn_measurement
-          FROM CHARTEVENTS c
-          LEFT JOIN D_ITEMS di using(itemid)
-          INNER JOIN icu_ordered io USING(subject_id, hadm_id, icustay_id)
-          WHERE c.itemid = 220052  -- Arterial Blood Pressure mean
-            AND c.valuenum IS NOT NULL
-            AND c.charttime BETWEEN io.intime AND (io.intime + INTERVAL '24' HOUR) -- Filter for events occurring strictly during the first 24h in the ICU stay
-      ),
-      icu_with_lactate AS (
-          -- Only ICU stays that have at least one lactate
-          SELECT DISTINCT subject_id, hadm_id, icustay_id
-          FROM lactate_ranked
-          WHERE rn_measurement = 1
-      ),
-      all_measurements AS (
-          SELECT * FROM lactate_ranked WHERE rn_measurement = 1
-          UNION ALL
-          SELECT * FROM confounders WHERE rn_measurement = 1
-          UNION ALL
-          SELECT * FROM mabp WHERE rn_measurement = 1
-      )
-      SELECT
-          ROW_NUMBER() OVER (ORDER BY iu.subject_id, iu.hadm_id, iu.icustay_id, am.measurement_label) AS row_id,
-          iu.subject_id,
-          p.dob,
-          YEAR(iu.intime) - YEAR(p.DOB) AS age_icu_entry,
-          YEAR(iu.outtime) - YEAR(p.DOB) AS age_icu_exit,
-          p.gender,
-          iu.hadm_id,
-          iu.icustay_id,
-          iu.intime,
-          iu.outtime,
-          iu.hospital_dead,
-          CASE
-              WHEN iu.hospital_dead = 1 AND iu.rn_icu = 1 THEN 1
-              ELSE 0
-          END AS icu_dead,
-          am.measurement_label,
-          am.measurement_time,
-          am.measurement_value,
-          am.measurement_value_num,
-          am.measurement_units,
-          am.measurement_flag
-      FROM icu_ordered iu
-      INNER JOIN icu_with_lactate iwl USING(subject_id,hadm_id,icustay_id)
-      INNER JOIN all_measurements am USING(subject_id,hadm_id,icustay_id)
-      LEFT JOIN PATIENTS p USING(subject_id)
-      ORDER BY iu.subject_id, iu.hadm_id, iu.icustay_id, am.measurement_label;
+            i.subject_id,
+            i.hadm_id,
+            i.icustay_id,
+            i.intime,
+            i.outtime,
+            a.hospital_expire_flag AS hospital_dead,
+            ROW_NUMBER() OVER (
+                PARTITION BY i.subject_id, i.hadm_id
+                ORDER BY i.outtime DESC
+            ) AS rn_icu
+        FROM ICUSTAYS i
+        JOIN ADMISSIONS a
+            ON i.hadm_id = a.hadm_id
+    ),
+    lactate_first AS (
+        SELECT
+            io.subject_id,
+            io.hadm_id,
+            io.icustay_id,
+            l.charttime as lactate_time,
+            l.value as lactate_value,
+            l.valuenum as lactate_value_num,
+            l.valueuom as lactate_units,
+            l.flag as lactate_flag,
+            ROW_NUMBER() OVER (
+                PARTITION BY io.icustay_id
+                ORDER BY l.charttime ASC
+            ) AS rn
+        FROM LABEVENTS l
+        INNER JOIN icu_ordered io USING(subject_id, hadm_id)
+        WHERE l.itemid = 50813
+          AND l.value IS NOT NULL
+          AND l.charttime BETWEEN io.intime AND (io.intime + INTERVAL '24' HOUR)
+    ),
+    ck_first AS (
+        SELECT
+            io.subject_id,
+            io.hadm_id,
+            io.icustay_id,
+            l.charttime as ck_time,
+            l.value as ck_value,
+            l.valuenum as ck_value_num,
+            l.valueuom as ck_units,
+            l.flag as ck_flag,
+            ROW_NUMBER() OVER (
+                PARTITION BY io.icustay_id
+                ORDER BY l.charttime ASC
+            ) AS rn
+        FROM LABEVENTS l
+        INNER JOIN icu_ordered io USING(subject_id, hadm_id)
+        WHERE l.ITEMID = 50910
+          AND l.charttime BETWEEN io.intime AND (io.intime + INTERVAL '24' HOUR)
+    ),
+    bilirubin_first AS (
+        SELECT
+            io.subject_id,
+            io.hadm_id,
+            io.icustay_id,
+            l.charttime as bilirubin_time,
+            l.value as bilirubin_value,
+            l.valuenum as bilirubin_value_num,
+            l.valueuom as bilirubin_units,
+            l.flag as bilirubin_flag,
+            ROW_NUMBER() OVER (
+                PARTITION BY io.icustay_id
+                ORDER BY l.charttime ASC
+            ) AS rn
+        FROM LABEVENTS l
+        INNER JOIN icu_ordered io USING(subject_id, hadm_id)
+        WHERE l.ITEMID = 50885
+          AND l.charttime BETWEEN io.intime AND (io.intime + INTERVAL '24' HOUR)
+    ),
+    mabp_first AS (
+        SELECT
+            io.subject_id,
+            io.hadm_id,
+            io.icustay_id,
+            c.CHARTTIME as mabp_time,
+            c.value as mabp_value,
+            c.valuenum as mabp_value_num,
+            c.valueuom as mabp_units,
+            ROW_NUMBER() OVER (
+                PARTITION BY io.icustay_id
+                ORDER BY c.charttime ASC
+            ) AS rn
+        FROM CHARTEVENTS c
+        INNER JOIN icu_ordered io USING(subject_id, hadm_id, icustay_id)
+        WHERE c.itemid = 220052
+          AND c.valuenum IS NOT NULL
+          AND c.charttime BETWEEN io.intime AND (io.intime + INTERVAL '24' HOUR)
+    ),
+    icu_with_lactate AS (
+        SELECT DISTINCT subject_id, hadm_id, icustay_id
+        FROM lactate_first
+        WHERE rn = 1
+    )
+    SELECT
+        ROW_NUMBER() OVER (ORDER BY iu.subject_id, iu.hadm_id, iu.icustay_id) AS row_id,
+        iu.subject_id,
+        p.dob,
+        YEAR(iu.intime) - YEAR(p.DOB) AS age_icu_entry,
+        YEAR(iu.outtime) - YEAR(p.DOB) AS age_icu_exit,
+        p.gender,
+        iu.hadm_id,
+        iu.icustay_id,
+        iu.intime,
+        iu.outtime,
+        iu.hospital_dead,
+        CASE
+            WHEN iu.hospital_dead = 1 AND iu.rn_icu = 1 THEN 1
+            ELSE 0
+        END AS icu_dead,
+        lf.lactate_time,
+        lf.lactate_value,
+        lf.lactate_value_num,
+        lf.lactate_units,
+        lf.lactate_flag,
+        ck.ck_time,
+        ck.ck_value,
+        ck.ck_value_num,
+        ck.ck_units,
+        ck.ck_flag,
+        bil.bilirubin_time,
+        bil.bilirubin_value,
+        bil.bilirubin_value_num,
+        bil.bilirubin_units,
+        bil.bilirubin_flag,
+        mb.mabp_time,
+        mb.mabp_value,
+        mb.mabp_value_num,
+        mb.mabp_units
+    FROM icu_ordered iu
+    INNER JOIN icu_with_lactate iwl ON iwl.subject_id = iu.subject_id 
+        AND iwl.hadm_id = iu.hadm_id 
+        AND iwl.icustay_id = iu.icustay_id
+    LEFT JOIN lactate_first lf ON lf.subject_id = iu.subject_id 
+        AND lf.hadm_id = iu.hadm_id 
+        AND lf.icustay_id = iu.icustay_id
+        AND lf.rn = 1
+    LEFT JOIN ck_first ck ON ck.subject_id = iu.subject_id 
+        AND ck.hadm_id = iu.hadm_id 
+        AND ck.icustay_id = iu.icustay_id
+        AND ck.rn = 1
+    LEFT JOIN bilirubin_first bil ON bil.subject_id = iu.subject_id 
+        AND bil.hadm_id = iu.hadm_id 
+        AND bil.icustay_id = iu.icustay_id
+        AND bil.rn = 1
+    LEFT JOIN mabp_first mb ON mb.subject_id = iu.subject_id 
+        AND mb.hadm_id = iu.hadm_id 
+        AND mb.icustay_id = iu.icustay_id
+        AND mb.rn = 1
+    LEFT JOIN PATIENTS p ON p.subject_id = iu.subject_id
+    ORDER BY iu.subject_id, iu.hadm_id, iu.icustay_id;
 "
 
 initial_df <- dbGetQuery(con, cohort_query) 
