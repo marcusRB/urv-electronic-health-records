@@ -582,7 +582,7 @@ missing_df <- data.frame(
   ) %>%
   arrange(desc(Missing_Count))
 
-print(missing_df)
+mi
 ```
 
 
@@ -628,7 +628,7 @@ data (factor > 2 levels) polr, proportional odds model for (ordered, > 2 levels)
 
 ```{r}
 # missing_columns 
-# imputed_data <- mice(ckd_clean,
+# imputed_data <- mice(eda_df,
 #                       m = 5,
 #                       maxit = 50,
 #                       method = 'pmm',
@@ -638,13 +638,21 @@ data (factor > 2 levels) polr, proportional odds model for (ordered, > 2 levels)
 
 
 
+##############
+
+EXPLAIN WHY WE CANNOT TO AFFORD THIS SECTION DUE DATA LEAKAGE
+
+##############
+
+
+
 ------------------------------------------------------------------------
 
 \newpage
 
-# Statistical Analysis
+# Inference and Statistical Analysis
 
-## Primary analysis (clustering, logistic regression, lineal model, etc., ROC curves)
+## Primary analysis (hypothesis testing, estimations, descriptive analysis, probability, confidence interval, CLT)
 
 ------------------------------------------------------------------------
 
@@ -656,7 +664,33 @@ data (factor > 2 levels) polr, proportional odds model for (ordered, > 2 levels)
 
 \newpage
 
-# Machine Learning modeling
+# Machine Learning modeling  (clustering logistic regression, lineal model, etc., ROC curves)
+
+## Clustering
+
+```{r}
+str(eda_df)
+```
+
+```{r}
+if (!require('cluster')) install.packages('cluster')
+library(cluster)
+
+if (!require('dbscan')) install.packages('dbscan')
+library(dbscan)
+```
+
+
+
+```{r}
+#cols_ml <- c()
+
+imputed_df <- na.omit(eda_df)
+summary(imputed_df)
+```
+
+
+
 
 ------------------------------------------------------------------------
 
