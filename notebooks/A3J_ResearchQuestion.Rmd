@@ -586,7 +586,55 @@ print(missing_df)
 ```
 
 
+## Imputations Methods
 
+**The MICE Algorithm**
+
+Multiple Imputation by Chained Equations is a robust, informative method of dealing with missing data in
+datasets. The procedure ‘fills in’ (imputes) missing data in a dataset through an iterative series of predictive
+models. In each iteration, each specified variable in the dataset is imputed using the other variables in the
+dataset. These iterations should be run until it appears that convergence has been met.
+
+**Data Leakage**:
+
+MICE is particularly useful if missing values are associated with the target variable in a way that introduces
+leakage. For instance, let’s say you wanted to model customer retention at the time of sign up. A certain
+variable is collected at sign up or 1 month after sign up. The absence of that variable is a data leak, since
+it tells you that the customer did not retain for 1 month.
+
+**Funnel Analysis**:
+
+Information is often collected at different stages of a ‘funnel’. MICE can be used to make educated guesses
+about the characteristics of entities at different points in a funnel.
+
+**Confidence Intervals**:
+MICE can be used to impute missing values, however it is important to keep in mind that these imputed
+values are a prediction. Creating multiple datasets with different imputed values allows you to do two types
+of inference:
+
+* Imputed Value Distribution: A profile can be built for each imputed value, allowing you to make
+statements about the likely distribution of that value.
+
+* Model Prediction Distribution: With multiple datasets, you can build multiple models and create a
+distribution of predictions for each sample. Those samples with imputed values which were not able
+to be imputed with much confidence would have a larger variance in their predictions.
+
+> defaultMethod = c(“pmm”, “logreg”, “polyreg”, “polr”) A vector of length 4 containing the
+default imputation methods for 1) numeric data, 2) factor data with 2 levels, 3) factor data with
+> 2 unordered levels, and 4) factor data with > 2 ordered levels. By default, the method uses
+16 pmm, predictive mean matching (numeric data) logreg, logistic regression imputation (binary
+data, factor with 2 levels) polyreg, polytomous regression imputation for unordered categorical
+data (factor > 2 levels) polr, proportional odds model for (ordered, > 2 levels).
+
+```{r}
+# missing_columns 
+# imputed_data <- mice(ckd_clean,
+#                       m = 5,
+#                       maxit = 50,
+#                       method = 'pmm',
+#                       seed = 42,
+#                      )
+```
 
 
 
