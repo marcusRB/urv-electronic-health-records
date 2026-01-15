@@ -49,6 +49,21 @@ Authors' information
 \begin{center}
 \begin{tabular}{|l|l|}
 \hline
+\textbf{Nombre} & Johanna Ursula Albers \\
+\hline
+\textbf{Email} & johanna.albers@estudiants.urv.cat\\
+\hline
+\textbf{GitHub} & https://github.com/ \\
+\hline
+\textbf{LinkedIn} & https://www.linkedin.com/in/ \\
+\hline
+\textbf{Fecha} & \today \\
+\hline
+\end{tabular}
+\end{center}
+\begin{center}
+\begin{tabular}{|l|l|}
+\hline
 \textbf{Nombre} & Marco Russo \\
 \hline
 \textbf{Email} & mrussorb@uoc.edu \\
@@ -64,26 +79,9 @@ Authors' information
 \begin{center}
 \begin{tabular}{|l|l|}
 \hline
-\textbf{Nombre} & ... \\
+\textbf{Nombre} & Noa-Sibila Janer Oliver \\
 \hline
-\textbf{Email} & ...@...
- \\
-\hline
-\textbf{GitHub} & https://github.com/ \\
-\hline
-\textbf{LinkedIn} & https://www.linkedin.com/in/ \\
-\hline
-\textbf{Fecha} & \today \\
-\hline
-\end{tabular}
-\end{center}
-\begin{center}
-\begin{tabular}{|l|l|}
-\hline
-\textbf{Nombre} & ... \\
-\hline
-\textbf{Email} & ...@...
- \\
+\textbf{Email} & noa-sibila.janer@estudiants.urv.cat \\
 \hline
 \textbf{GitHub} & https://github.com/ \\
 \hline
@@ -94,6 +92,7 @@ Authors' information
 \end{tabular}
 \end{center}
 \newpage
+
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, 
@@ -469,12 +468,15 @@ ggplot(clean_values_df, aes(x = lactate_value_num, fill = lactate_flag)) +
 
 
 Validate mortality coherence 1: icu_dead cannot be true if hospital_dead is false.
+
 ```{r}
 clean_values_df %>%
   filter(icu_dead == 1 & hospital_dead == 0) %>%
   nrow()
 ```
+
 Validate mortality coherence 2: each subject should have at most one recorded death across ICU and hospital stays.
+
 ```{r}
 death_counts <- clean_values_df %>%
   group_by(subject_id) %>%
@@ -498,8 +500,9 @@ clean_values_df <- clean_values_df %>%
   )
 ```
 
-```{r}
 
+```{r}
+# Show the distribution of lactate values (log scale)
 ggplot(clean_values_df, aes(lactate_value_num)) +
   geom_histogram(bins = 50, fill = "steelblue", color = "white") +
   scale_x_log10() + 
@@ -508,6 +511,7 @@ ggplot(clean_values_df, aes(lactate_value_num)) +
 
 ```
 The final cohort for exploratory analysis comprises 21,016 unique subjects, accounting for 24,622 hospital admissions and 25,743 ICU stays. The dataset includes a total of 128,715 lactate observations, with an average of 5 measurements per ICU stay, providing a robust longitudinal perspective on patient biomarkers.
+
 ```{r}
 summary(clean_values_df)
 ```
