@@ -239,12 +239,12 @@ library(kernelshap)
 
 ```{r}
 # Creating the main directories
-if (!dir.exists("figures")) {
-dir.create("figures", recursive = TRUE)
+if (!dir.exists("../figures")) {
+dir.create("../figures", recursive = TRUE)
 }
 
-if (!dir.exists("results")) {
-dir.create("results", recursive = TRUE)
+if (!dir.exists("../results")) {
+dir.create("../results", recursive = TRUE)
 }
 
 ```
@@ -1455,7 +1455,7 @@ The statistical analysis demonstrates robust and significant associations betwee
 
 # Machine Learning modeling
 
-## Purpose: Patient clustering and segmentation to identify risk phenotypes
+## Patient clustering and segmentation to identify risk phenotypes
 
 This analysis aims to identify distinct patient subgroups or clinical phenotypes within the ICU population by clustering patients based on their lactate profiles and associated characteristics. 
 
@@ -1521,44 +1521,86 @@ cat(sprintf("  Silhouette: k = %d (score = %.3f)\n",
 cat(sprintf("  Gap statistic: k = %d\n", 
             which.max(gap_stat$Tab[, "gap"])))
 
-# Plot determination methods
-png("../figures/figure10_optimal_clusters.png",
-    width = 15, height = 5, units = "in", res = 300)
 
-par(mfrow = c(1, 3))
+# Plotting elbow
+elbow_df <- data.frame(
+  k = 1:10,
+  wss = wss
+)
 
-# Elbow plot
-plot(1:10, wss, type = "b", pch = 19, col = "steelblue",
-     xlab = "Number of Clusters (k)", 
-     ylab = "Within-cluster Sum of Squares",
-     main = "Elbow Method")
-grid()
+fig11a <- ggplot(elbow_df, aes(x = k, y = wss)) +
+  geom_line(linewidth = 1, color = "steelblue") +
+  geom_point(size = 2, color = "steelblue") +
+  labs(
+    title = "Elbow Method",
+    x = "Number of Clusters (k)",
+    y = "Within-cluster Sum of Squares"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold")
+  )
+
+fig11a
+
 
 # Silhouette plot
-plot(2:10, silhouette_scores, type = "b", pch = 19, col = "coral",
-     xlab = "Number of Clusters (k)", 
-     ylab = "Average Silhouette Width",
-     main = "Silhouette Method")
-grid()
+silhouette_df <- data.frame(
+  k = 2:10,
+  silhouette = silhouette_scores
+)
 
-# Gap statistic plot
-plot(gap_stat, main = "Gap Statistic Method")
+fig_11b <- ggplot(silhouette_df, aes(x = k, y = silhouette)) +
+  geom_line(linewidth = 1, color = "coral") +
+  geom_point(size = 2, color = "coral") +
+  labs(
+    title = "Silhouette Method",
+    x = "Number of Clusters (k)",
+    y = "Average Silhouette Width"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold")
+  )
 
-dev.off()
-
-cat("\nFigure saved: results/figures/figure10_optimal_clusters.png\n")
+fig_11b
 
 # Choose k=3 based on clinical interpretability and silhouette
 optimal_k <- 3
 cat(sprintf("\nSelected k = %d for final clustering\n", optimal_k))
 ```
 
-After the first results, we have a k=[2,3] to add on our clustering algorithm.
+
+```{r include=FALSE}
+
+ggsave(
+  filename = "../figures/figure11a_elbow.png",
+  plot = fig11a,
+  width = 15,
+  height = 5,
+  units = "in",
+  dpi = 300
+)
+
+ggsave(
+  filename = "../figures/figure11b_silhouette.png",
+  plot = fig_11b,
+  width = 15,
+  height = 5,
+  units = "in",
+  dpi = 300
+)
+
+```
+
+
+After the first results, we have to choose k in range between 2 and 4.
 
 ## Apply K-Means Clustering
 
 ```{r}
 set.seed(42)
+# Starting with k=3
 kmeans_result <- kmeans(features_scaled, centers = optimal_k, nstart = 50)
 
 # Add cluster assignment to dataframe
@@ -1602,12 +1644,38 @@ chisq_kmeans <- chisq.test(table(clustering_df$cluster_kmeans,
                                   clustering_df$icu_dead))
 cat(sprintf("\nChi-square test (cluster vs mortality): χ² = %.2f, p = %.4f\n",
             chisq_kmeans$statistic, chisq_kmeans$p.value))
+
+fig12 <- ggplot() +
+  geom_point(data = clustering_df,
+             mapping = aes(x = age_icu_exit,
+                          y = exp(log_lactate),  # Back-transform
+                          colour = cluster_kmeans),
+             size = 2, alpha = 0.6) +
+  labs(title = "K-means Clustering: Age vs Lactate",
+       x = "Age at ICU Exit",
+       y = "Lactate (mmol/L)",
+       colour = "Cluster") +
+  theme_minimal()
+fig12
 ```
+
+```{r include=FALSE}
+ggsave(
+  "../figures/figure12_kmeans.png",
+  plot = fig12,
+  width = 12,
+  height = 6,
+  dpi = 300
+)
+
+```
+
+
 The k-means clustering analysis identified three distinct patient phenotypes with significantly different mortality profiles (χ² = 79.67, p < 0.001). Cluster 1 represents the largest group (591 patients) characterized by older age (70 years), low lactate levels, moderate creatine kinase, low bilirubin, and relatively stable blood pressure, suggesting a lower-risk elderly population. Cluster 2 (314 patients) captures high-risk patients with elevated lactate (1.41 log mmol/L), very high bilirubin (1.04 log mg/dL), elevated creatine kinase, and lower blood pressure (73.71 mmHg), indicating multi-organ dysfunction and hemodynamic instability. Cluster 3 (239 patients) identifies a younger cohort (50 years) with moderately elevated lactate, extremely high creatine kinase (7.41 log U/L), and good blood pressure, potentially representing trauma or rhabdomyolysis cases. These data-driven phenotypes reveal that ICU patients stratify into clinically interpretable risk groups beyond simple lactate categorization, with each cluster representing distinct pathophysiological patterns that significantly associate with mortality outcomes.
 
-# ============================================================================
-# 3. HIERARCHICAL CLUSTERING
-# ============================================================================
+***
+
+## Hierarchical clustering
 
 ```{r}
 # Calculate distance matrix
@@ -1634,18 +1702,70 @@ mortality_by_hc <- clustering_df %>%
 cat("\nMortality by Hierarchical cluster:\n")
 print(mortality_by_hc, digits = 1)
 
-# Plot dendrogram
-png("../figures/figure11_dendrogram.png",
-    width = 12, height = 6, units = "in", res = 300)
+# Select the most representative subjects (medoids)
+cluster_membership <- cutree(hc_ward, k = optimal_k)
+representatives <- lapply(1:optimal_k, function(k) {
+  members <- which(cluster_membership == k)
+  sub_dist <- as.matrix(dist_matrix)[members, members]
+  # Medoid = subject with minimal average distance to all others in cluster
+  members[which.min(rowMeans(sub_dist))]
+})
+representatives <- unlist(representatives)
 
-plot(hc_ward, labels = FALSE, hang = -1,
-     main = "Hierarchical Clustering Dendrogram (Ward's Method)",
-     xlab = "Patients", ylab = "Height")
-rect.hclust(hc_ward, k = optimal_k, border = 2:4)
+# Extract only representative subjects
+rep_indices <- representatives
+rep_dist_matrix <- as.dist(as.matrix(dist_matrix)[rep_indices, rep_indices])
+rep_hc_ward <- hclust(rep_dist_matrix, method = "ward.D2")
+
+# Create labels for representatives only
+rep_labels <- eda_df$icustay_id[rep_indices]
+rep_clusters <- cluster_membership[rep_indices]
+
+# Visualize dendrogram with only representative subjects
+fig13 <- fviz_dend(
+  rep_hc_ward,
+  k = optimal_k,
+  show_labels = TRUE,
+  rect = TRUE,
+  main = "Hierarchical Clustering - Representative Subjects Only",
+  horiz = TRUE,
+  lwd = 1.5,
+  cex = 1.2,
+  color_labels_by_k = TRUE
+)
+
+print(fig13)
+
+# Print representative subject details
+cat("\nRepresentative subjects by cluster:\n")
+rep_df <- eda_df[rep_indices, ] %>%
+  mutate(cluster = factor(rep_clusters, labels = c("HC-1", "HC-2", "HC-3"))) %>%
+  select(icustay_id, cluster, age_icu_exit, lactate_value_num, ck_value_num, 
+         bilirubin_value_num, mabp_value_num, icu_dead)
+
+print(rep_df)
 ```
-The hierarchical clustering analysis identified three patient phenotypes with distinct mortality profiles that differ substantially from the k-means results. Cluster HC-1, the largest group with 371 patients, shows a relatively low mortality rate of 18.9%, representing a moderate-risk population. Cluster HC-2, comprising 593 patients, demonstrates the highest mortality at 38.3%, indicating a high-risk phenotype characterized by severe physiological derangement and poor prognosis. Cluster HC-3, with 180 patients, exhibits an intermediate mortality rate of 21.7%, falling between the other two clusters. The hierarchical approach reveals a different patient segmentation pattern compared to k-means, with HC-2 identifying a larger proportion of critically ill patients at substantially elevated mortality risk, suggesting that the dendrogram-based hierarchical method captures different aspects of patient heterogeneity and risk stratification that may complement the k-means partitioning approach.
 
-### Model-based clustering (Gaussian Mixture models)
+```{r include=FALSE}
+ggsave(
+  "../figures/figure13_dendrogram.png",
+  plot = fig13,
+  width = 12,
+  height = 6,
+  dpi = 300
+)
+
+```
+
+
+The hierarchical clustering analysis identified three patient phenotypes with distinct mortality profiles that differ substantially from the k-means results. Cluster HC-1, the largest group with 371 patients, shows a relatively low mortality rate of 18.9%, representing a moderate-risk population. Cluster HC-2, comprising 593 patients, demonstrates the highest mortality at 38.3%, indicating a high-risk phenotype characterized by severe physiological derangement and poor prognosis. Cluster HC-3, with 180 patients, exhibits an intermediate mortality rate of 21.7%, falling between the other two clusters. 
+
+The hierarchical approach reveals a different patient segmentation pattern compared to k-means, with HC-2 identifying a larger proportion of critically ill patients at substantially elevated mortality risk, suggesting that the dendrogram-based hierarchical method captures different aspects of patient heterogeneity and risk stratification that may complement the k-means partitioning approach.
+
+
+***
+
+## Model-based clustering (Gaussian Mixture models)
 
 
 ```{r}
@@ -1682,74 +1802,75 @@ print(mortality_by_gmm, digits = 1)
 ```{r}
 # Perform PCA for visualization
 pca_result <- prcomp(features_scaled)
-pca_variance <- summary(pca_result)$importance[2, 1:2] * 100
+pca_variance <- summary(pca_result)$importance[2, 1:4] * 100
 
 cat(sprintf("\nPCA variance explained:\n"))
 cat(sprintf("  PC1: %.1f%%\n", pca_variance[1]))
 cat(sprintf("  PC2: %.1f%%\n", pca_variance[2]))
+cat(sprintf("  PC3: %.1f%%\n", pca_variance[3]))
+cat(sprintf("  PC4: %.1f%%\n", pca_variance[4]))
 
 # Add PCA coordinates to dataframe
 clustering_df$PC1 <- pca_result$x[, 1]
 clustering_df$PC2 <- pca_result$x[, 2]
 
-# Create comprehensive visualization
-png("../figures/figure12_cluster_visualization.png",
-    width = 15, height = 10, units = "in", res = 300)
-
 par(mfrow = c(2, 2))
 
 # K-means clusters
-plot(clustering_df$PC1, clustering_df$PC2, 
+plot(clustering_df$PC1, clustering_df$PC2,
      col = as.numeric(clustering_df$cluster_kmeans) + 1,
      pch = ifelse(clustering_df$icu_dead == 1, 17, 19),
      cex = 1.2,
      xlab = sprintf("PC1 (%.1f%% variance)", pca_variance[1]),
      ylab = sprintf("PC2 (%.1f%% variance)", pca_variance[2]),
      main = "K-means Clustering")
-legend("topright", 
+legend("topright",
        legend = c(levels(clustering_df$cluster_kmeans), "Died", "Survived"),
        col = c(2:4, 1, 1),
        pch = c(19, 19, 19, 17, 19),
        cex = 0.8)
 
 # Hierarchical clusters
-plot(clustering_df$PC1, clustering_df$PC2, 
+plot(clustering_df$PC1, clustering_df$PC2,
      col = as.numeric(clustering_df$cluster_hc) + 1,
      pch = ifelse(clustering_df$icu_dead == 1, 17, 19),
      cex = 1.2,
      xlab = sprintf("PC1 (%.1f%% variance)", pca_variance[1]),
      ylab = sprintf("PC2 (%.1f%% variance)", pca_variance[2]),
      main = "Hierarchical Clustering")
-legend("topright", 
+legend("topright",
        legend = levels(clustering_df$cluster_hc),
        col = 2:4, pch = 19, cex = 0.8)
 
 # GMM clusters
-plot(clustering_df$PC1, clustering_df$PC2, 
+plot(clustering_df$PC1, clustering_df$PC2,
      col = as.numeric(clustering_df$cluster_gmm) + 1,
      pch = ifelse(clustering_df$icu_dead == 1, 17, 19),
      cex = 1.2,
      xlab = sprintf("PC1 (%.1f%% variance)", pca_variance[1]),
      ylab = sprintf("PC2 (%.1f%% variance)", pca_variance[2]),
      main = "GMM Clustering")
-legend("topright", 
+legend("topright",
        legend = levels(clustering_df$cluster_gmm),
        col = 2:(gmm_result$G + 1), pch = 19, cex = 0.8)
 
 # Mortality overlay
-plot(clustering_df$PC1, clustering_df$PC2, 
+plot(clustering_df$PC1, clustering_df$PC2,
      col = ifelse(clustering_df$icu_dead == 1, "red", "green"),
      pch = 19, cex = 1.2,
      xlab = sprintf("PC1 (%.1f%% variance)", pca_variance[1]),
      ylab = sprintf("PC2 (%.1f%% variance)", pca_variance[2]),
      main = "Mortality Status")
-legend("topright", 
+legend("topright",
        legend = c("Died", "Survived"),
        col = c("red", "green"), pch = 19, cex = 0.8)
+
 ```
+
 ```{r}
 summary(pca_result)$importance[,] * 100
 ```
+
 The first principal component has only ~30% of variance explained, plus the second
 component is around 54%. We need almost 4 principal components to reach 90%.
 
@@ -1999,7 +2120,20 @@ print(c50_importance)
 ```
 
 ```{r}
+# Show in notebook
 plot(model_c50)
+
+# Save to file
+png(
+  "../figures/figure14_c50_model_plot.png",
+  width = 8,
+  height = 6,
+  units = "in",
+  res = 300
+)
+plot(model_c50)
+dev.off()
+
 ```
 
 
@@ -2018,8 +2152,6 @@ lactate (≤1.63 log mmol/L or ~5.1 mmol/L) with normal bilirubin
 (≤1.93 log mg/dL or ~6.9 mg/dL) to predict survival in 15,090 cases with 87.3% accuracy. 
 
 Rules 4-6 identify high-risk mortality patterns: Rule 4 shows that severe hyperlactatemia (>2.26 log mmol/L or >9.6 mmol/L) alone predicts death with 71.3% accuracy and a 4.5-fold lift; Rule 5 identifies elderly patients (>76 years) with elevated lactate (>1.63 log mmol/L or >5.1 mmol/L) as high-risk with 63.0% accuracy and 3.9-fold lift; and Rule 6 reveals that combined elevated lactate (>1.36 log mmol/L or >3.9 mmol/L) with high bilirubin (>1.93 log mg/dL or >6.9 mg/dL) predicts death with 59.9% accuracy and 3.7-fold lift, indicating multi-organ dysfunction. The model achieves 85% overall accuracy on training data, with lactate being the most critical variable (used 100% of the time), followed by bilirubin (91%) and age (73%), demonstrating that lactate thresholds around 4-10 mmol/L are key decision points, with elderly age and hepatic dysfunction significantly modifying mortality risk.
-
-
 
 
 ***
@@ -2055,7 +2187,13 @@ rf_importance <- importance(model_rf)
 print(rf_importance)
 
 # Plot importance
-png("../figures/figure13_rf_importance.png",
+varImpPlot(model_rf, 
+           main = "Random Forest Variable Importance",
+           pch = 19,
+           col = "steelblue",
+           cex = 1.2)
+
+png("../figures/figure15_rf_importance.png",
     width = 10, height = 7, units = "in", res = 300)
 
 varImpPlot(model_rf, 
@@ -2065,8 +2203,6 @@ varImpPlot(model_rf,
            cex = 1.2)
 
 dev.off()
-
-cat("\nFigure saved: results/figures/figure13_rf_importance.png\n")
 ```
 
 
@@ -2081,7 +2217,7 @@ test_matrix <- model.matrix(icu_dead_f ~ . - icu_dead - 1, data = test_data)
 train_labels <- as.numeric(train_data$icu_dead_f == "Died")
 test_labels <- as.numeric(test_data$icu_dead_f == "Died")
 
-dtest <- xgb.DMatrix(data = test_matrix, label = test_labels)
+# dtest <- lgb.DMatrix(data = test_matrix, label = test_labels)
 
 dtrain <- lgb.Dataset(
   data = train_matrix,
@@ -2134,10 +2270,12 @@ cat("\nLightGBoost Feature Importance:\n")
 print(importance_lgb)
 
 # Plot importance
-png("../figures/figure14_lgb_importance.png",
-    width = 10, height = 7, units = "in", res = 300)
 lgb.plot.importance(importance_lgb)
 
+png("../figures/figure16_lgb_importance.png",
+    width = 10, height = 7, units = "in", res = 300)
+lgb.plot.importance(importance_lgb)
+dev.off()
 ```
 
 
@@ -2163,7 +2301,7 @@ cat("\nModel Performance Comparison:\n")
 print(model_comparison %>% select(Model, AUC_CI), row.names = FALSE)
 
 # Plot ROC curves
-png("../figures/figure15_ml_roc_comparison.png",
+png("../figures/figure17_ml_roc_comparison.png",
     width = 10, height = 10, units = "in", res = 300)
 
 plot(roc_glm, col = "blue", lwd = 2.5, legacy.axes = TRUE,
@@ -2221,19 +2359,19 @@ shap_lgb <- shapviz(
 
 ```{r}
 # Summary plot
-png("../figures/figure16_shap_summary.png",
+png("../figures/figure18_shap_summary.png",
     width = 10, height = 8, units = "in", res = 300)
 
 sv_importance(shap_lgb, kind = "beeswarm")
 
 # Bar plot of mean absolute SHAP values
-png("../figures/figure17_shap_importance_bar.png",
+png("../figures/figure19_shap_importance_bar.png",
     width = 10, height = 7, units = "in", res = 300)
 
 sv_importance(shap_lgb, kind = "bar")
 
 # Dependence plots for top features
-png("../figures/figure18_shap_dependence_lactate.png",
+png("../figures/figure20_shap_dependence_lactate.png",
     width = 10, height = 7, units = "in", res = 300)
 
 sv_dependence(shap_lgb, v = "log_lactate", color_var = "auto")
@@ -2270,10 +2408,7 @@ cat("\nConclusion: ", names(shap_importance)[1],
 ```
 
 
-# ============================================================================
-# 8. FEATURE IMPORTANCE COMPARISON ACROSS MODELS
-# ============================================================================
-
+## Feature importance comparison across models
 
 ```{r}
 # Combine importance from all models
@@ -2304,10 +2439,10 @@ cat("\nNormalized Feature Importance (0-100):\n")
 print(round(importance_normalized, 1))
 
 # Save importance comparison
-write_csv(importance_normalized, "results/tables/feature_importance_comparison.csv")
+write_csv(importance_normalized, "../results/tables/feature_importance_comparison.csv")
 
 # Plot comparison
-png("../figures/figure19_importance_comparison.png",
+png("../figures/figure21_importance_comparison.png",
     width = 12, height = 8, units = "in", res = 300)
 
 importance_long <- importance_normalized %>%
@@ -2353,12 +2488,10 @@ ggplot(importance_long, aes(x = reorder(Feature, Importance),
 
 dev.off()
 
-cat("\nFigure saved: results/figures/figure19_importance_comparison.png\n")
+cat("\nFigure saved: ../figures/figure22_importance_comparison.png\n")
 ```
 
-# ============================================================================
-# SAVE ALL RESULTS
-# ============================================================================
+### Save the results
 
 ```{r}
 ml_results <- list(
@@ -2366,7 +2499,7 @@ ml_results <- list(
   model_c50 = model_c50,
   model_c50_rules = model_c50_rules,
   model_rf = model_rf,
-  model_xgb = model_xgb,
+  model_lgb = model_lgb,
   model_comparison = model_comparison,
   importance_comparison = importance_normalized,
   shap_values = shap_values_df,
@@ -2375,7 +2508,7 @@ ml_results <- list(
     pred_glm = pred_glm,
     pred_c50 = pred_c50,
     pred_rf = pred_rf,
-    pred_xgb = pred_xgb
+    pred_lgb = pred_lgb
   )
 )
 
@@ -2393,307 +2526,6 @@ cat("\nAll results saved to: results/ml_complete_results.RData\n")
 
 
 ***
-
-
-
-
-
-
-------------------------------------------------------------------------
-
-## Subgroup analyses, sensitivity analyses
-
-## Create all figures and tables
-
-
-```{r}
-str(eda_df)
-```
-
-```{r}
-if (!require('cluster')) install.packages('cluster')
-library(cluster)
-
-if (!require('dbscan')) install.packages('dbscan')
-library(dbscan)
-```
-
-
-
-```{r}
-#cols_ml <- c()
-
-imputed_df <- na.omit(initial_df)
-summary(imputed_df)
-```
-
-
-```{r}
-names(imputed_df)
-```
-
-```{r}
-ml_columns <- c("subject_id", "age_icu_entry","gender","icu_dead","lactate_time",
-                "lactate_value_num","lactate_flag", "ck_value_num","ck_flag",
-                "bilirubin_value_num","bilirubin_flag","mabp_value_num","mabp_units"
-)
-stats_df <- imputed_df %>%
-  select(ml_columns)
-``` 
-
-
-```{r}
-head(stats_df)
-```
-
-```{r}
-# Proportion table by gender 0=F 1=M
-prop.table(table(ifelse(stats_df$gender == 'F', 0, 1)))*100
-```
-
-
-```{r}
-# Proportion table by lactate_flag 0=normal, 1=abnormal
-prop.table(table(ifelse(stats_df$lactate_flag == 'normal', 0, 1)))*100
-```
-
-
-```{r}
-# Proportion table by bilirubin_flag 0=normal, 1=abnormal
-prop.table(table(ifelse(stats_df$bilirubin_flag == 'normal', 0, 1)))*100
-```
-
-
-```{r}
-# Proportion table by ck_flag 0=normal, 1=abnormal
-prop.table(table(ifelse(stats_df$ck_flag == 'normal', 0, 1)))*100
-```
-
-
-```{r}
-# Proportion table by icu_dead 0=alive, 1=dead
-prop.table(table(stats_df$icu_dead))*100
-```
-
-
-
-```{r}
-stats_df$lactate_scores <- case_when(
-  stats_df$lactate_value_num < 2 ~ 0,
-  stats_df$lactate_value_num >=2 & stats_df$lactate_value_num < 4 ~ 1,
-  stats_df$lactate_value_num >= 4 ~ 2
-)
-```
-
-```{r}
-set.seed(17)
-```
-
-
-```{r}
-# Model 1: Lactate only (unadjusted)
-model1 <- glm(
-  icu_dead ~ lactate_value_num,
-  data = stats_df,
-  family = binomial()
-)
-```
-
-
-
-```{r}
-# Model 2: Lactate + demographics
-
-stats_df$gender_num <- ifelse(stats_df$gender == 'F', 0, 1)
-
-model2 <- glm(
-  icu_dead ~ lactate_value_num + age_icu_entry + gender_num,
-  data = stats_df,
-  family = binomial()
-)
-```
-
-
-
-```{r}
-# Model 3: Lactate + demographics + clinical factors
-model3 <- glm(
-  icu_dead ~ lactate_value_num + age_icu_entry + gender_num + 
-    ck_value_num + bilirubin_value_num + mabp_value_num,
-  data = stats_df,
-  family = binomial()
-)
-```
-
-
-```{r}
-# Compare models
-cat("\n--- Model 1: Unadjusted ---\n")
-print(tidy(model1, exponentiate = TRUE, conf.int = TRUE))
-cat(sprintf("AIC: %.1f\n", AIC(model1)))
-
-cat("\n--- Model 2: Adjusted for demographics ---\n")
-print(tidy(model2, exponentiate = TRUE, conf.int = TRUE))
-cat(sprintf("AIC: %.1f\n", AIC(model2)))
-
-cat("\n--- Model 3: Adjusted for demographics + clinical factors ---\n")
-print(tidy(model3, exponentiate = TRUE, conf.int = TRUE))
-cat(sprintf("AIC: %.1f\n", AIC(model3)))
-```
-
-```{r}
-# Likelihood ratio tests
-lrt_2vs1 <- anova(model1, model2, test = "Chisq")
-lrt_3vs2 <- anova(model2, model3, test = "Chisq")
-```
-
-
-
-```{r eval=FALSE, include=FALSE}
-cat("\nLikelihood Ratio Tests:\n")
-cat(sprintf("Model 2 vs Model 1: p = %.4f\n", lrt_2vs1$`Pr(>Chi)`[2]))
-cat(sprintf("Model 3 vs Model 2: p = %.4f\n", lrt_3vs2$`Pr(>Chi)`[2]))
-```
-
-
-```{r eval=FALSE, include=FALSE}
-# Save model results
-model_comparison <- data.frame(
-  Model = c("Model 1: Unadjusted",
-            "Model 2: + Demographics",
-            "Model 3: + Clinical factors"),
-  AIC = c(AIC(model1), AIC(model2), AIC(model3)),
-  BIC = c(BIC(model1), BIC(model2), BIC(model3))
-)
-```
-
-
-```{r eval=FALSE, include=FALSE}
-model_comparison
-```
-
-
-```{r eval=FALSE, include=FALSE}
-cat("\n=== CATEGORICAL LACTATE ANALYSIS ===\n")
-
-# Using lactate categories (reference: Normal)
-model_categorical <- glm(
-  icu_dead ~ lactate_scores + age_icu_entry + gender_num + 
-    ck_value_num + bilirubin_value_num + mabp_value_num,
-  data = stats_df,
-  family = binomial()
-)
-
-cat("\nLogistic Regression: Lactate Categories (Adjusted)\n")
-results_cat <- tidy(model_categorical, exponentiate = TRUE, conf.int = TRUE)
-print(results_cat)
-
-```
-
-```{r eval=FALSE, include=FALSE}
-cat("\n=== ROC CURVE ANALYSIS ===\n")
-
-# Prepare data for ROC analysis (complete cases only)
-roc_data <- stats_df %>%
-  mutate(
-    pred_model1 = predict(model1, newdata = ., type = "response"),
-    pred_model3 = predict(model3, newdata = ., type = "response"),
-  )
-
-# Calculate ROC curves
-roc_model1 <- roc(roc_data$icu_dead, roc_data$pred_model1)
-roc_model3 <- roc(roc_data$icu_dead, roc_data$pred_model3)
-```
-
-```{r eval=FALSE, include=FALSE}
-# AUC with confidence intervals
-cat("\nAUC (95% CI):\n")
-cat(sprintf("Model 1 (Lactate only): %.3f (%.3f-%.3f)\n",
-            auc(roc_model1), ci.auc(roc_model1)[1], ci.auc(roc_model1)[3]))
-cat(sprintf("Model 3 (Clinical model): %.3f (%.3f-%.3f)\n",
-            auc(roc_model3), ci.auc(roc_model3)[1], ci.auc(roc_model3)[3]))
-
-# Compare ROC curves
-roc_comparison <- roc.test(roc_model1, roc_model3)
-cat(sprintf("\nROC comparison (Model 3 vs Model 1): p = %.4f\n", 
-            roc_comparison$p.value))
-
-# Create Figure 1&3: ROC Curves
-png("../figures/figure4_roc_curves.png", 
-    width = 10, height = 10, units = "in", res = 300)
-
-plot(roc_model1, col = "blue", lwd = 2.5, legacy.axes = TRUE,
-     main = "ROC Curves for Mortality Prediction",
-     cex.main = 1.5, cex.lab = 1.3, cex.axis = 1.2)
-plot(roc_model3, col = "red", lwd = 2.5, add = TRUE)
-
-legend("bottomright",
-       legend = c(
-         sprintf("Lactate only (AUC = %.3f)", auc(roc_model1)),
-         sprintf("+ Clinical factors (AUC = %.3f)", auc(roc_model3))
-       ),
-       col = c("blue", "red", "darkgreen"),
-       lwd = 2.5,
-       cex = 1.2,
-       bty = "n")
-
-grid(col = "gray", lty = "dotted")
-
-dev.off()
-```
-
-
-
-```{r calibration analysis, eval=FALSE, include=FALSE}
-cat("\n=== CALIBRATION ANALYSIS ===\n")
-
-# Use rms package for proper calibration
-dd <- datadist(roc_data)
-options(datadist = "dd")
-
-# Fit model using lrm
-model_rms <- lrm(
-  icu_dead ~ lactate_value_num + age_icu_entry + gender_num + 
-    ck_value_num + bilirubin_value_num + mabp_value_num,
-  data = stats_df,
-  family = binomial(),
-  data = roc_data,
-  x = TRUE,
-  y = TRUE
-)
-```
-
-
-
-```{r boostrap_validatiom, eval=FALSE, include=FALSE}
-
-# Bootstrap validation
-set.seed(17)
-val <- validate(model_rms, B = 200)
-
-cat("\nBootstrap Validation (200 repetitions):\n")
-print(val)
-
-# Calibration
-cal <- calibrate(model_rms, B = 200)
-
-# Plot calibration
-png("../figures/figure5_calibration.png",
-    width = 8, height = 8, units = "in", res = 300)
-
-plot(cal,
-     xlab = "Predicted Probability of Mortality",
-     ylab = "Observed Probability of Mortality",
-     main = "Calibration Plot (200 Bootstrap Samples)",
-     cex.main = 1.4,
-     cex.lab = 1.2,
-     cex.axis = 1.1)
-
-dev.off()
-
-```
-
-
 
 ------------------------------------------------------------------------
 
