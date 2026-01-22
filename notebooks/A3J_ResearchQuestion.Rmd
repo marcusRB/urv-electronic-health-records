@@ -162,7 +162,7 @@ MIMIC-III v1.4 was released on 2 September 2016. It was a major release
 enhancing data quality and providing a large amount of additional data
 for Metavision patients.
 
-------------------------------------------------------------------------
+***
 
 \newpage
 
@@ -235,6 +235,21 @@ library(DALEXtra)
 library(shapviz)
 library(kernelshap)
 ```
+
+
+```{r}
+# Creating the main directories
+if (!dir.exists("figures")) {
+dir.create("figures", recursive = TRUE)
+}
+
+if (!dir.exists("results")) {
+dir.create("results", recursive = TRUE)
+}
+
+```
+
+
 
 ```{r include=FALSE}
 # Get the credentials file
@@ -650,11 +665,25 @@ We analyse the distribution of the lactate value.
 
 ```{r}
 # Show the distribution of lactate values
-ggplot(eda_df, aes(lactate_value_num)) +
+figure_1 <- ggplot(eda_df, aes(lactate_value_num)) +
   geom_histogram(bins = 50, fill = "steelblue", color = "white") + 
   labs(title = "Distribution of lactate values") +
   theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+figure_1
 ```
+
+
+```{r include=FALSE}
+ggsave(
+  filename = "../figures/figure01_distribution_lactate_value.png",
+  plot = figure_1,
+  width = 15,
+  height = 5,
+  units = "in",
+  dpi = 300
+)
+```
+
 
 We add a column with the log-transformation of the lactate measurement
 because the values are skewed.
@@ -669,30 +698,72 @@ eda_df <- eda_df %>%
 
 ```{r}
 # Show the distribution of lactate values (log scale)
-ggplot(eda_df, aes(log_lactate)) +
+figure_2 <- ggplot(eda_df, aes(log_lactate)) +
   geom_histogram(bins = 50, fill = "steelblue", color = "white") + 
   labs(title = "Distribution of lactate values (log scale)") +
   theme(plot.title = element_text(hjust = 0.5, face = "bold"))
-
+figure_2
 ```
+
+```{r}
+ggsave(
+  filename = "../figures/figure02_distribution_lactate_value_log.png",
+  plot = figure_2,
+  width = 15,
+  height = 5,
+  units = "in",
+  dpi = 300
+)
+```
+
+
 
 We analyse the distribution of confounding variables.
 
 ```{r}
 # Show the distribution of bilirubin values
-ggplot(eda_df, aes(bilirubin_value_num)) +
+figure_3 <- ggplot(eda_df, aes(bilirubin_value_num)) +
   geom_histogram(bins = 50, fill = "steelblue", color = "white") + 
   labs(title = "Distribution of creatine bilirubin values") +
   theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+figure_3
 ```
 
 ```{r}
+ggsave(
+  filename = "../figures/figure03_distribution_bilirubin_value.png",
+  plot = figure_3,
+  width = 15,
+  height = 5,
+  units = "in",
+  dpi = 300
+)
+```
+
+
+
+```{r}
 # Show the distribution of ck values
-ggplot(eda_df, aes(ck_value_num)) +
+figure_4 <- ggplot(eda_df, aes(ck_value_num)) +
   geom_histogram(bins = 50, fill = "steelblue", color = "white") + 
   labs(title = "Distribution of creatine kinase values") +
   theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+figure_4
 ```
+
+```{r}
+ggsave(
+  filename = "../figures/figure04_distribution_ck_value.png",
+  plot = figure_4,
+  width = 15,
+  height = 5,
+  units = "in",
+  dpi = 300
+)
+```
+
+
 
 Although creatine kinase and bilirubin measurements exhibited extreme
 high values, observed concentrations were within clinically plausible
@@ -710,39 +781,101 @@ eda_df <- eda_df %>%
 
 ```{r}
 # Show the distribution of ck values (log scale)
-ggplot(eda_df, aes(log_ck)) +
+figure_5 <- ggplot(eda_df, aes(log_ck)) +
   geom_histogram(bins = 50, fill = "steelblue", color = "white") + 
   labs(title = "Distribution of ck values (log scale)") +
   theme(plot.title = element_text(hjust = 0.5, face = "bold"))
-
+figure_5
 ```
+
+```{r}
+ggsave(
+  filename = "../figures/figure05_distribution_ck_value_log.png",
+  plot = figure_5,
+  width = 15,
+  height = 5,
+  units = "in",
+  dpi = 300
+)
+```
+
+
 
 ```{r}
 # Show the distribution of bilirubin values (log scale)
-ggplot(eda_df, aes(log_bilirubin)) +
+figure_6 <- ggplot(eda_df, aes(log_bilirubin)) +
   geom_histogram(bins = 50, fill = "steelblue", color = "white") + 
   labs(title = "Distribution of bilirubin values (log scale)") +
   theme(plot.title = element_text(hjust = 0.5, face = "bold"))
-
+figure_6
 ```
+
+
+```{r}
+ggsave(
+  filename = "../figures/figure06_distribution_bilirubin_log.png",
+  plot = figure_6,
+  width = 15,
+  height = 5,
+  units = "in",
+  dpi = 300
+)
+```
+
+
+
 
 ```{r}
 # Show the distribution of mabp values
-ggplot(eda_df, aes(mabp_value_num)) +
+figure_7 <- ggplot(eda_df, aes(mabp_value_num)) +
   geom_histogram(bins = 50, fill = "steelblue", color = "white") + 
   labs(title = "Distribution of mabp values") +
   theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+figure_7
 ```
+
+
+
+```{r}
+ggsave(
+  filename = "../figures/figure07_distribution_mabp_values.png",
+  plot = figure_7,
+  width = 15,
+  height = 5,
+  units = "in",
+  dpi = 300
+)
+```
+
+
+
 
 We examined the association between log-transformed lactate levels and
 ICU mortality, which constituted the primary relationship of interest.
 
 ```{r}
-boxplot(log_lactate ~ icu_dead,
-        data = eda_df,
-        ylab = "Lactate",
-        xlab = "ICU Death")
+figure_08 <- ggplot(eda_df, aes(x = factor(icu_dead), y = log_lactate)) +
+  geom_boxplot() +
+  labs(
+    x = "ICU Death",
+    y = "Log(Lactate)"
+  )
+
+figure_08
 ```
+
+```{r}
+ggsave(
+  filename = "../figures/figure08_boxplot_icu_death.png",
+  plot = figure_08,
+  width = 15,
+  height = 5,
+  units = "in",
+  dpi = 300
+)
+```
+
+***
 
 ### Missing values and imputations
 
@@ -757,10 +890,22 @@ library(ggplot2)
 missing_df <- eda_df %>%
   select(-icustay_id)
 
-gg_miss_var(missing_df, show_pct = TRUE) +
+figure09 <- gg_miss_var(missing_df, show_pct = TRUE) +
 labs(title = "Missing Values by Variable in Dataset Subset",
 x = "Variables",
 y = "Proportion of Missing Values")
+figure09
+```
+
+```{r}
+ggsave(
+  filename = "../figures/figure09_missing_values.png",
+  plot = figure09,
+  width = 15,
+  height = 5,
+  units = "in",
+  dpi = 300
+)
 ```
 
 
@@ -804,12 +949,13 @@ cor(
 
 Correlations among continuous predictors were weak, indicating no evidence of problematic collinearity.
 
+***
 
 ## EDA Summary
 
 Based on exploratory data analysis, lactate was retained as the primary exposure variable and modeled on the log scale due to right-skewed distributions. Creatine kinase and bilirubin were likewise log-transformed prior to analysis. Mean arterial blood pressure was retained on the original scale after removal of physiologically implausible values. Laboratory abnormality flags were excluded, as quantitative measurements provided greater informational content. Correlation analysis indicated no problematic collinearity among continuous predictors. Variables with substantial missingness were considered as secondary confounders, and no imputation was performed.
 
-------------------------------------------------------------------------
+***
 
 \newpage
 
@@ -876,6 +1022,8 @@ A one-unit increase in log-transformed lactate was associated with a 2.82-fold i
 No subgroup analyses were performed due to the observational nature of the study and the absence of pre-specified effect modification hypotheses.
 
 ***
+
+\newpage
 
 ## Inference and Statistical Analysis
 
@@ -950,6 +1098,8 @@ The confidence interval does not cross zero, reinforcing the robustness of the f
 Because the test was conducted on log-lactate, the estimated difference 
 corresponds to a multiplicative effect on the original scale and suggests that 
 median lactate levels in survivors are approximately 30–35% lower than in non-survivors.
+
+***
 
 ### Dose-response Analysis: Cochran-Armitage trend test.
 
@@ -1027,7 +1177,7 @@ These findings confirm that higher lactate levels are strongly associated with
 progressively worse outcomes in critically ill patients, establishing lactate 
 as a powerful prognostic marker in the ICU setting.
 
-
+***
 
 ### Confidence intervals: Mortality rates by category
 
@@ -1078,6 +1228,7 @@ rate of 38.0% (95% CI: 36.2% to 39.8%), with its lower confidence bound substant
 
 The non-overlapping confidence intervals provide strong statistical evidence that each lactate category represents a genuinely distinct risk level, with patients moving from one category to the next facing significantly and progressively higher mortality risk.
 
+***
 
 ### Confidence intervals using bootstrap for odds ratios.
 
@@ -1111,6 +1262,7 @@ cat(sprintf("   OR 95%% CI: %.3f to %.3f\n",
 ```
 The bootstrap analysis with 1,000 replicates confirms a robust association between lactate levels and mortality, with each unit increase in log-lactate associated with an odds ratio of 2.82 (95% CI: 2.66 to 3.01), meaning that for every doubling of lactate concentration, the odds of death increase approximately 2.8-fold. The confidence interval is relatively narrow and does not include 1.0, providing strong statistical evidence that elevated lactate is a significant and reliable predictor of ICU mortality, with the lower bound still indicating at least a 2.66-fold increased risk per unit change in log-lactate.
 
+***
 
 ### Central Limit theorem demonstration
 
@@ -1139,33 +1291,59 @@ cat(sprintf("   Shapiro-Wilk test: W = %.4f, p = %.4f\n",
             shapiro_test$statistic, shapiro_test$p.value))
 cat("   Conclusion: Sampling distribution is approximately normal (CLT)\n")
 
-# Plot sampling distribution
-if (!dir.exists("figures")) {
-dir.create("figures", recursive = TRUE)
-}
-png("../figures/figure9_clt_demonstration.png", 
-   width = 10, height = 6, units = "in", res = 300)
 
-par(mfrow = c(1, 2))
+fig10a <- ggplot(eda_df, aes(lactate_value_num)) +
+  geom_histogram(bins = 50, fill = "steelblue", color = "white") +
+  labs(
+    title = "Original Lactate Distribution",
+    x = "Lactate (mmol/L)",
+    y = "Count"
+  )
 
-# Original distribution
-hist(eda_df$lactate_value_num, breaks = 50, 
-     main = "Original Lactate Distribution (Right-skewed)",
-     xlab = "Lactate (mmol/L)", 
-     col = "steelblue", border = "white")
+fig10b <- ggplot(data.frame(sample_means), aes(sample_means)) +
+  geom_histogram(bins = 50, fill = "coral", color = "white") +
+  stat_function(
+    fun = function(x)
+      dnorm(x, mean(sample_means), sd(sample_means)) *
+      length(sample_means) *
+      diff(range(sample_means)) / 50,
+    color = "red",
+    linewidth = 1
+  ) +
+  labs(
+    title = "Sampling Distribution of Mean",
+    x = "Sample Mean Lactate (mmol/L)",
+    y = "Count"
+  )
 
-# Sampling distribution
-hist(sample_means, breaks = 50,
-     main = paste0("Sampling Distribution of Mean\n(n=", sample_size, ", ", 
-                   n_simulations, " samples)"),
-     xlab = "Sample Mean Lactate (mmol/L)",
-     col = "coral", border = "white")
-curve(dnorm(x, mean = mean(sample_means), sd = sd(sample_means)) * 
-        length(sample_means) * diff(range(sample_means))/50,
-      add = TRUE, col = "red", lwd = 2)
+fig10a
+fig10b
 
-dev.off()
 ```
+
+
+
+```{r}
+ggsave(
+  filename = "../figures/figure10a_clt_demonstration.png",
+  plot = fig10a,
+  width = 15,
+  height = 5,
+  units = "in",
+  dpi = 300
+)
+
+ggsave(
+  filename = "../figures/figure10b_clt_demonstration.png",
+  plot = fig10b,
+  width = 15,
+  height = 5,
+  units = "in",
+  dpi = 300
+)
+```
+
+
 The central limit theorem demonstration using 10,000 bootstrap samples of size 
 100 confirms that the sampling distribution of lactate means is approximately normal. 
 The mean of all sample means (2.438 mmol/L) is virtually identical to the 
@@ -1213,6 +1391,8 @@ print(scenarios %>%
 ```
 
 The logistic regression model provides well-calibrated probability estimates for mortality across different risk scenarios with tight confidence intervals. Patients in the low-risk category have a predicted mortality of 5.3% (95% CI: 4.9% to 5.8%), representing the baseline risk for those with favorable lactate levels. Medium-risk patients face a predicted mortality of 14.1% (95% CI: 13.4% to 14.7%), nearly tripling the baseline risk, while high-risk patients show a predicted mortality of 29.8% (95% CI: 28.5% to 31.0%), approaching one-third mortality probability. Most critically, very high-risk patients have a predicted mortality of 49.4% (95% CI: 47.1% to 51.7%), indicating nearly a coin-flip chance of death and representing more than a nine-fold increase compared to low-risk patients. The narrow, non-overlapping confidence intervals across all risk categories demonstrate that the model provides reliable and discriminating probability estimates, enabling clinicians to stratify patients into distinct prognostic groups based on their lactate levels.
+
+***
 
 ### Subgroup analysis: Age stratification
 
@@ -1265,7 +1445,7 @@ if (anova_interaction$`Pr(>Chi)`[2] > 0.05) {
 
 The interaction test reveals significant effect modification by age (χ² = 49.52, p < 0.001), indicating that the association between lactate levels and mortality is not uniform across different age groups. This means that the prognostic value of lactate varies depending on patient age, with some age strata showing stronger or weaker associations between elevated lactate and death than others. The highly significant p-value provides strong statistical evidence that age modifies how lactate predicts mortality risk, suggesting that clinicians should interpret lactate values in the context of patient age when assessing prognosis, as a given lactate level may carry different mortality implications for younger versus older ICU patients.
 
-## Conclusions of Statistical Inference analysis
+### Statistical Inference analysis Summary
 
 The statistical analysis demonstrates robust and significant associations between lactate levels and ICU mortality through multiple complementary approaches. Non-parametric testing confirmed that non-survivors had significantly higher lactate levels than survivors (Wilcoxon W = 23,000,966, p < 0.001), with a median difference of approximately 0.4 mmol/L on the log scale. Categorical analysis revealed a strong dose-response relationship (χ² = 1259.55, df = 2, p < 0.001) with mortality rates increasing from 11.2% in normal lactate patients to 38.0% in those with severe hyperlactatemia, confirmed by the Cochran-Armitage trend test (|Z| = 31.50, p < 0.001). Bootstrap analysis with 1,000 replicates established that each unit increase in log-lactate increases mortality odds by 2.82-fold (95% CI: 2.66-3.01), demonstrating excellent precision and reliability. The model generates well-calibrated probability estimates ranging from 5.3% mortality in low-risk patients to 49.4% in very high-risk patients, with narrow, non-overlapping confidence intervals confirming strong discrimination. Central limit theorem validation using 10,000 samples confirmed appropriate normality of the sampling distribution (W = 0.9944), supporting the validity of parametric inference. Importantly, subgroup analysis revealed significant effect modification by age (χ² = 49.52, p < 0.001), indicating that lactate's prognostic value varies across age strata and should be interpreted in clinical context.
 
