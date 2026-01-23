@@ -1029,9 +1029,8 @@ No subgroup analyses were performed due to the observational nature of the study
 
 ### Hypothesis testing: Lactate versus Mortality
 
-We applying the non parametric test called Wilconox test, which performs one- 
-and two-sample Wilcoxon tests on vectors of data. The latter is also known 
-as ‘Mann-Whitney’ test.
+We applying a non parametric test, **Wilconox test**, which performs one- 
+and two-sample on vectors of data. The latter is also known as ‘Mann-Whitney’ test.
 
 ```{r}
 # Split in survivors and non-survivors vectors
@@ -1039,7 +1038,7 @@ survivors <- analysis_df %>% filter(icu_dead == 0) %>% pull(log_lactate)
 non_survivors <- analysis_df %>% filter(icu_dead == 1) %>% pull(log_lactate)
 ```
 
-We procede to run a non-parametric test based on two hypothesis:
+We procede a test based on two hypothesis:
 
 * $H_0$: Null hypothesis, which the lactate levels are not different between survivors and non-survivors
 * $H_1$: Alternative hypothesis, which the lactate levels differ between survivors and non-survivors
@@ -1049,7 +1048,6 @@ We procede to run a non-parametric test based on two hypothesis:
 wilcox_result <- wilcox.test(log_lactate ~ icu_dead, 
                               data = analysis_df,
                               conf.int = TRUE)
-
 ```
 
 
@@ -1063,7 +1061,6 @@ cat(sprintf(" Median lactate non-survivors: %.2f mmol/L [IQR: %.2f-%.2f]\n",
             quantile(non_survivors, 0.25), 
             quantile(non_survivors, 0.75)))
 ```
-
 
 ```{r}
 # Show the results
@@ -1082,8 +1079,8 @@ survivors and non-survivors. Because the analysis was performed on log-transform
 lactate values, the test evaluates differences in the location (median) of 
 log-lactate between groups.
 
-* W = 23,000,966
-* p < 2.2 × 10⁻¹⁶
+* $W = 23,000,966$
+* $p < 2.2 \times 10^{-1^6}$
 the Estimated location shift (log scale): −0.38
 the 95% CI: −0.41 to −0.36
 
@@ -1096,17 +1093,18 @@ values than non-survivors.
 The confidence interval does not cross zero, reinforcing the robustness of the finding.
 
 Because the test was conducted on log-lactate, the estimated difference 
-corresponds to a multiplicative effect on the original scale and suggests that 
+corresponds to a multiplicative effect on the original scale and it suggests that 
 median lactate levels in survivors are approximately 30–35% lower than in non-survivors.
 
 ***
 
 ### Dose-response Analysis: Cochran-Armitage trend test.
 
-The Cochran-Armitage trend test is a statistical method for detecting a linear 
-trend in proportions across ordered categories, often used in dose-response 
-studies or genetic association studies to see if a response 
-(like disease presence) changes consistently (increases or decreases) 
+The **Cochran-Armitage** trend test is a statistical method for detecting a linear 
+trend in proportions across ordered categories. 
+
+It often used in dose-response studies or genetic association studies to see 
+if a response (like disease presence) changes consistently (increases or decreases) 
 with ordered exposures (like drug dose or genotype). 
 
 It's a powerful modification of the chi-squared test, focusing specifically on 
@@ -1260,7 +1258,9 @@ cat(sprintf("   OR 95%% CI: %.3f to %.3f\n",
             exp(boot_ci$percent[4]), 
             exp(boot_ci$percent[5])))
 ```
-The bootstrap analysis with 1,000 replicates confirms a robust association between lactate levels and mortality, with each unit increase in log-lactate associated with an odds ratio of 2.82 (95% CI: 2.66 to 3.01), meaning that for every doubling of lactate concentration, the odds of death increase approximately 2.8-fold. The confidence interval is relatively narrow and does not include 1.0, providing strong statistical evidence that elevated lactate is a significant and reliable predictor of ICU mortality, with the lower bound still indicating at least a 2.66-fold increased risk per unit change in log-lactate.
+The bootstrap analysis with 1,000 replicates confirms a robust association between lactate levels and mortality, with each unit increase in log-lactate associated with an odds ratio of 2.82 (95% CI: 2.66 to 3.01), meaning that for every doubling of lactate concentration, the odds of death increase approximately 2.8-fold.
+
+The confidence interval is relatively narrow and does not include 1.0, providing strong statistical evidence that elevated lactate is a significant and reliable predictor of ICU mortality, with the lower bound still indicating at least a 2.66-fold increased risk per unit change in log-lactate.
 
 ***
 
@@ -1346,16 +1346,19 @@ ggsave(
 
 The central limit theorem demonstration using 10,000 bootstrap samples of size 
 100 confirms that the sampling distribution of lactate means is approximately normal. 
+
 The mean of all sample means (2.438 mmol/L) is virtually identical to the 
 population mean (2.436 mmol/L), demonstrating unbiased estimation. 
+
 The observed standard deviation of sample means (0.206) closely matches the 
 theoretical standard error (0.205), validating the mathematical prediction of
-sampling variability. Although the Shapiro-Wilk test shows statistical 
-significance (W = 0.9944, p < 0.001) due to the large number of samples making 
-it highly sensitive to minor deviations, the W statistic of 0.9944 
-(very close to the perfect value of 1.0) indicates the distribution is 
-substantively normal, confirming that the central limit theorem holds even for 
-lactate data which may not be normally distributed at the individual level.
+sampling variability. 
+
+Although the Shapiro-Wilk test shows statistical significance (W = 0.9944, p < 0.001) 
+due to the large number of samples making it highly sensitive to minor deviations, 
+the W statistic of 0.9944 (very close to the perfect value of 1.0) indicates 
+the distribution is substantively normal, confirming that the central limit theorem
+holds even for lactate data which may not be normally distributed at the individual level.
 
 *** 
 
@@ -1390,7 +1393,13 @@ print(scenarios %>%
       row.names = FALSE)
 ```
 
-The logistic regression model provides well-calibrated probability estimates for mortality across different risk scenarios with tight confidence intervals. Patients in the low-risk category have a predicted mortality of 5.3% (95% CI: 4.9% to 5.8%), representing the baseline risk for those with favorable lactate levels. Medium-risk patients face a predicted mortality of 14.1% (95% CI: 13.4% to 14.7%), nearly tripling the baseline risk, while high-risk patients show a predicted mortality of 29.8% (95% CI: 28.5% to 31.0%), approaching one-third mortality probability. Most critically, very high-risk patients have a predicted mortality of 49.4% (95% CI: 47.1% to 51.7%), indicating nearly a coin-flip chance of death and representing more than a nine-fold increase compared to low-risk patients. The narrow, non-overlapping confidence intervals across all risk categories demonstrate that the model provides reliable and discriminating probability estimates, enabling clinicians to stratify patients into distinct prognostic groups based on their lactate levels.
+The logistic regression model provides well-calibrated probability estimates for mortality across different risk scenarios with tight confidence intervals. 
+
+Patients in the low-risk category have a predicted mortality of 5.3% (95% CI: 4.9% to 5.8%), representing the baseline risk for those with favorable lactate levels. Medium-risk patients face a predicted mortality of 14.1% (95% CI: 13.4% to 14.7%), nearly tripling the baseline risk, while high-risk patients show a predicted mortality of 29.8% (95% CI: 28.5% to 31.0%), approaching one-third mortality probability.
+
+Most critically, very high-risk patients have a predicted mortality of 49.4% (95% CI: 47.1% to 51.7%), indicating nearly a coin-flip chance of death and representing more than a nine-fold increase compared to low-risk patients. 
+
+The narrow, non-overlapping confidence intervals across all risk categories demonstrate that the model provides reliable and discriminating probability estimates, enabling clinicians to stratify patients into distinct prognostic groups based on their lactate levels.
 
 ***
 
@@ -1443,11 +1452,18 @@ if (anova_interaction$`Pr(>Chi)`[2] > 0.05) {
 }
 ```
 
-The interaction test reveals significant effect modification by age (χ² = 49.52, p < 0.001), indicating that the association between lactate levels and mortality is not uniform across different age groups. This means that the prognostic value of lactate varies depending on patient age, with some age strata showing stronger or weaker associations between elevated lactate and death than others. The highly significant p-value provides strong statistical evidence that age modifies how lactate predicts mortality risk, suggesting that clinicians should interpret lactate values in the context of patient age when assessing prognosis, as a given lactate level may carry different mortality implications for younger versus older ICU patients.
+The interaction test reveals significant effect modification by age $\chi^2 = 49.52, p < 0.001$, indicating that the association between lactate levels and mortality is not uniform across different age groups. 
+
+This means that the prognostic value of lactate varies depending on patient age, with some age strata showing stronger or weaker associations between elevated lactate and death than others. 
+
+The highly significant p-value provides strong statistical evidence that age modifies how lactate predicts mortality risk, suggesting that clinicians should interpret lactate values in the context of patient age when assessing prognosis, as a given lactate level may carry different mortality implications for younger versus older ICU patients.
 
 ### Statistical Inference analysis Summary
 
-The statistical analysis demonstrates robust and significant associations between lactate levels and ICU mortality through multiple complementary approaches. Non-parametric testing confirmed that non-survivors had significantly higher lactate levels than survivors (Wilcoxon W = 23,000,966, p < 0.001), with a median difference of approximately 0.4 mmol/L on the log scale. Categorical analysis revealed a strong dose-response relationship (χ² = 1259.55, df = 2, p < 0.001) with mortality rates increasing from 11.2% in normal lactate patients to 38.0% in those with severe hyperlactatemia, confirmed by the Cochran-Armitage trend test (|Z| = 31.50, p < 0.001). Bootstrap analysis with 1,000 replicates established that each unit increase in log-lactate increases mortality odds by 2.82-fold (95% CI: 2.66-3.01), demonstrating excellent precision and reliability. The model generates well-calibrated probability estimates ranging from 5.3% mortality in low-risk patients to 49.4% in very high-risk patients, with narrow, non-overlapping confidence intervals confirming strong discrimination. Central limit theorem validation using 10,000 samples confirmed appropriate normality of the sampling distribution (W = 0.9944), supporting the validity of parametric inference. Importantly, subgroup analysis revealed significant effect modification by age (χ² = 49.52, p < 0.001), indicating that lactate's prognostic value varies across age strata and should be interpreted in clinical context.
+The analysis shows strong links between lactate levels and mortality in ICU patients. Non-survivors had higher lactate levels compared to survivors, with significant statistical results (p &lt; 0.001).
+
+The analysis found that as lactate levels increase, so do mortality rates, with rates rising from 11.2% to 38.0% in different lactate groups. Each unit increase in log-lactate raised the odds of death by 2.82 times. 
+The model provides accurate mortality estimates, ranging from 5.3% in low-risk to 49.4% in very high-risk patients. The study confirmed the normality of the distribution, validating the findings, and noted that lactate's impact varies with age, suggesting the need for age-specific clinical interpretations.
 
 ***
 
@@ -1457,11 +1473,7 @@ The statistical analysis demonstrates robust and significant associations betwee
 
 ## Patient clustering and segmentation to identify risk phenotypes
 
-This analysis aims to identify distinct patient subgroups or clinical phenotypes within the ICU population by clustering patients based on their lactate profiles and associated characteristics. 
-
-By segmenting patients into homogeneous risk groups, we can uncover hidden patterns that may not be apparent through traditional statistical approaches, potentially revealing clinically meaningful patient subtypes with different underlying pathophysiology, treatment responses, or prognostic trajectories. 
-
-This unsupervised learning approach allows for data-driven discovery of patient phenotypes that could inform personalized risk stratification, targeted interventions, and improved resource allocation in critical care settings.
+This analysis seeks to find unique patient groups in the ICU by clustering patients based on their lactate levels and related traits. By dividing patients into similar risk groups, it aims to reveal hidden patterns and clinically meaningful subtypes for better treatment and resource use in critical care.
 
 ```{r}
 # Use complete cases for clustering (from your PDF: 141 patients with all variables)
@@ -1594,7 +1606,7 @@ ggsave(
 ```
 
 
-After the first results, we have to choose k in range between 2 and 4.
+After the first results, we have to choose k=3, also both results shows a range between 2 and 4 cluster as optimal number.
 
 ## Apply K-Means Clustering
 
@@ -1671,11 +1683,21 @@ ggsave(
 ```
 
 
-The k-means clustering analysis identified three distinct patient phenotypes with significantly different mortality profiles (χ² = 79.67, p < 0.001). Cluster 1 represents the largest group (591 patients) characterized by older age (70 years), low lactate levels, moderate creatine kinase, low bilirubin, and relatively stable blood pressure, suggesting a lower-risk elderly population. Cluster 2 (314 patients) captures high-risk patients with elevated lactate (1.41 log mmol/L), very high bilirubin (1.04 log mg/dL), elevated creatine kinase, and lower blood pressure (73.71 mmHg), indicating multi-organ dysfunction and hemodynamic instability. Cluster 3 (239 patients) identifies a younger cohort (50 years) with moderately elevated lactate, extremely high creatine kinase (7.41 log U/L), and good blood pressure, potentially representing trauma or rhabdomyolysis cases. These data-driven phenotypes reveal that ICU patients stratify into clinically interpretable risk groups beyond simple lactate categorization, with each cluster representing distinct pathophysiological patterns that significantly associate with mortality outcomes.
+The k-means clustering analysis identified three distinct patient phenotypes with significantly different mortality profiles $\chi^2 = 79.67, p < 0.001$. 
+
+* Cluster 1 represents the largest group (591 patients) characterized by older age (70 years), low lactate levels, moderate creatine kinase, low bilirubin, and relatively stable blood pressure, suggesting a lower-risk elderly population.
+
+* Cluster 2 (314 patients) captures high-risk patients with elevated lactate (1.41 log mmol/L), very high bilirubin (1.04 log mg/dL), elevated creatine kinase, and lower blood pressure (73.71 mmHg), indicating multi-organ dysfunction and hemodynamic instability.
+
+* Cluster 3 (239 patients) identifies a younger cohort (50 years) with moderately elevated lactate, extremely high creatine kinase (7.41 log U/L), and good blood pressure, potentially representing trauma or rhabdomyolysis cases. 
+
+These data-driven reveal that ICU patients stratify into clinically interpretable risk groups beyond simple lactate categorization. Cluster 1 is older and lower risk. Cluster 2 is high risk with organ dysfunction. Cluster 3 is younger, possibly trauma cases. Each group shows distinct health patterns linked to mortality.
 
 ***
 
 ## Hierarchical clustering
+
+We are examining patterns among three groups using dendogram visualization, focusing on `subject_id` for future analysis.
 
 ```{r}
 # Calculate distance matrix
@@ -1994,7 +2016,7 @@ cat("\nResults saved to: results/clustering_results.RData\n")
 
 ***
 
-## ML models (C5.0, Random Forest, XGBoost) + SHAP explanations
+## ML models (C5.0, Random Forest, LGBoost) + SHAP explanations
 
 
 ```{r}
@@ -2072,8 +2094,9 @@ cat(sprintf("Logistic Regression AUC: %.3f (%.3f-%.3f)\n",
 
 The first results as baseline is Area Under Curve around 70%.
 
+***
 
-### DECISION TREE: C5.0 ALGORITHM
+### Decision Tree: C5.0 ALGORITHM
 
 ```{r}
 # Train C5.0 decision tree
@@ -2156,7 +2179,7 @@ Rules 4-6 identify high-risk mortality patterns: Rule 4 shows that severe hyperl
 
 ***
 
-### 4. RANDOM FOREST
+### Random Forest
 
 ```{r}
 # Train Random Forest
@@ -2206,7 +2229,7 @@ dev.off()
 ```
 
 
-### 4. LIGHT GBM
+### LightGBM Gradient Boosting
 
 ```{r}
 # Train LightGBM
@@ -2246,7 +2269,7 @@ params <- list(
 # Training
 set.seed(42)
 
-lgb_model <- lgb.train(
+model_lgb <- lgb.train(
   params = params,
   data = dtrain,
   nrounds = 300,
@@ -2255,9 +2278,9 @@ lgb_model <- lgb.train(
 
 
 # Predictions
-pred_prob <- predict(lgb_model, test_matrix)
+pred_lgb <- predict(model_lgb, test_matrix)
 
-roc_obj <- pROC::roc(test_labels, pred_prob)
+roc_obj <- pROC::roc(test_labels, pred_lgb)
 cat(sprintf("Test AUC: %.3f\n", pROC::auc(roc_obj)))
 
 ```
@@ -2265,7 +2288,7 @@ cat(sprintf("Test AUC: %.3f\n", pROC::auc(roc_obj)))
 
 ```{r}
 # Feature importance
-importance_lgb <- lgb.importance(model = lgb_model)
+importance_lgb <- lgb.importance(model = model_lgb)
 cat("\nLightGBoost Feature Importance:\n")
 print(importance_lgb)
 
@@ -2350,7 +2373,7 @@ train_data_matrix <- train_data %>%
 # Calculate SHAP values for LightGBoost
 cat("\nCalculating SHAP values for LightGBoost model...\n")
 shap_lgb <- shapviz(
-  lgb_model,
+  model_lgb,
   X_pred = test_data_matrix
 )
 
@@ -2415,8 +2438,7 @@ cat("\nConclusion: ", names(shap_importance)[1],
 importance_combined <- data.frame(
   Feature = c("age_icu_exit", "gender_num", "log_lactate", 
               "log_ck", "log_bilirubin", "mabp_value_num"),
-  C50 = c50_importance[c("age_icu_exit", "gender_num", "log_lactate",
-                         "log_ck", "log_bilirubin", "mabp_value_num")],
+  C50 = c50_importance[,],
   RandomForest = rf_importance[, "MeanDecreaseGini"],
   LGBoost = importance_lgb$Gain[match(
     c("age_icu_exit", "gender_num", "log_lactate", 
@@ -2436,10 +2458,12 @@ importance_normalized <- importance_combined %>%
   )
 
 cat("\nNormalized Feature Importance (0-100):\n")
-print(round(importance_normalized, 1))
+importance_normalized %>%
+  select(-Feature) %>%
+  round(1)
 
 # Save importance comparison
-write_csv(importance_normalized, "../results/tables/feature_importance_comparison.csv")
+write_csv(importance_normalized, "../results/feature_importance_comparison.csv")
 
 # Plot comparison
 png("../figures/figure21_importance_comparison.png",
@@ -2466,7 +2490,7 @@ importance_long <- importance_normalized %>%
 
 ```{r}
 library(ggplot2)
-ggplot(importance_long, aes(x = reorder(Feature, Importance), 
+fig21 <- ggplot(importance_long, aes(x = reorder(Feature, Importance), 
                             y = Importance, fill = Model)) +
   geom_col(position = "dodge", alpha = 0.8, color = "black") +
   coord_flip() +
@@ -2485,11 +2509,21 @@ ggplot(importance_long, aes(x = reorder(Feature, Importance),
     axis.title = element_text(face = "bold"),
     legend.position = "bottom"
   )
-
-dev.off()
-
-cat("\nFigure saved: ../figures/figure22_importance_comparison.png\n")
+fig21
 ```
+
+
+```{r include=FALSE}
+ggsave(
+  "../figures/figure21_features_comparison.png",
+  plot = fig21,
+  width = 12,
+  height = 6,
+  dpi = 300
+)
+
+```
+
 
 ### Save the results
 
@@ -2512,32 +2546,143 @@ ml_results <- list(
   )
 )
 
-save(ml_results, file = "results/ml_complete_results.RData")
-
-cat("\n", rep("=", 70), "\n")
-cat("MACHINE LEARNING ANALYSIS COMPLETE\n")
-cat(rep("=", 70), "\n")
-cat("\nBest performing model: ", 
-    model_comparison$Model[which.max(model_comparison$AUC)], "\n")
-cat(sprintf("AUC: %.3f\n", max(model_comparison$AUC)))
-cat("\nMost important feature (SHAP): ", names(shap_importance)[1], "\n")
-cat("\nAll results saved to: results/ml_complete_results.RData\n")
+save(ml_results, file = "../results/ml_complete_results.RData")
 ```
 
 
 ***
 
-------------------------------------------------------------------------
-
-\newpage
-
-# Next steps
-
-------------------------------------------------------------------------
-
 \newpage
 
 # Conclusions
+
+## Main findings
+
+This study examined the relationship between lactate levels and ICU mortality in 22,302 patients from the MIMIC-III database. The primary analysis used logistic regression to assess whether elevated lactate measurements taken within 24 hours of ICU admission predicted in-hospital death.
+
+Patients who died had higher lactate levels than survivors (median 2.5 vs 1.5 mmol/L). After adjusting for age and sex, each unit increase in log-transformed lactate was associated with a 2.82-fold increase in mortality odds (95% CI: 2.66-3.01). This relationship remained significant even after accounting for other laboratory values including creatinine kinase, bilirubin, and blood pressure.
+
+The study identified a dose-response relationship across three lactate categories. Patients with normal lactate (<2 mmol/L) had 11.2% mortality, those with moderately elevated lactate (2-4 mmol/L) had 15.2% mortality, and patients with severe elevation (>4 mmol/L) had 38.0% mortality. Statistical tests confirmed this progressive increase was not due to chance.
+
+Bootstrap analysis with 1,000 replicates confirmed the stability of these estimates. The Central Limit Theorem demonstration validated that standard statistical methods were appropriate for this dataset, despite lactate values not following a normal distribution.
+
+Age modified the lactate-mortality relationship. The association was strongest in younger patients (<50 years) and weakened progressively in older age groups. This finding suggests lactate elevation may indicate more severe physiological derangement in younger individuals.
+
+## Missing data considerations
+
+A substantial portion of patients lacked measurements for creatinine kinase (59%), bilirubin (57%), and mean arterial pressure (74%). The primary analysis therefore focused on lactate, age, and sex—variables that were complete for all patients. Sensitivity analyses comparing models with and without these additional variables showed consistent lactate effects, suggesting the main findings are robust to missing data.
+
+## Machine Learning considerations
+
+Three machine learning algorithms were compared: C5.0 decision trees, Random Forest, and LightGBM gradient boosting. These models were trained on 75% of the data and tested on the remaining 25%.
+
+### Model performance
+
+LightGBM achieved the highest discrimination (AUC: 0.840, 95% CI: 0.825-0.854), substantially outperforming logistic regression (AUC: 0.694) and other tree-based methods. Random Forest showed intermediate performance (AUC: 0.716), while the simpler C5.0 decision tree had lower discrimination (AUC: 0.600).
+The C5.0 model generated interpretable clinical rules. The most important rule identified that lactate above 9.6 mmol/L predicted death with 71% accuracy. Combining elevated lactate with age over 76 years increased mortality prediction to 63%. These rules aligned with clinical knowledge about lactate thresholds and age-related risk.
+
+Feature importance analysis across all models consistently identified lactate as the strongest predictor. SHAP values, which measure each variable's contribution to individual predictions, confirmed lactate had the highest average impact (1.42), followed by creatinine kinase (1.14) and bilirubin (0.63). Age and blood pressure showed smaller but meaningful contributions.
+
+## Patient clustering
+
+Unsupervised clustering identified three distinct patient phenotypes with different mortality profiles:
+
+* Cluster 1 (591 patients, 21% mortality): Older patients (mean age 70 years) with relatively normal lactate (1.4 mmol/L), low creatinine kinase, and stable blood pressure. This group represented lower-risk elderly admissions.
+
+* Cluster 2 (314 patients, 49% mortality): Patients with severe multi-organ dysfunction, characterized by high lactate (4.1 mmol/L), markedly elevated bilirubin (2.5 mg/dL), and lower blood pressure (74 mmHg). Nearly half of these patients died.
+
+* Cluster 3 (239 patients, 25% mortality): Younger patients (mean age 50 years) with extremely elevated creatinine kinase (1,465 IU/L) but only moderately elevated lactate. This pattern suggested muscle injury such as rhabdomyolysis or trauma rather than systemic hypoperfusion.
+
+These phenotypes demonstrate that elevated lactate has different clinical meanings depending on patient characteristics and associated organ dysfunction.
+
+## Critical gaps in current analysis
+
+
+### Temporal Dynamics
+
+The study analyzed only the first lactate measurement after ICU admission. However, lactate clearance—the rate at which lactate normalizes—is clinically more important than a single value. A patient whose lactate decreases from 8 to 2 mmol/L has a fundamentally different prognosis than one whose lactate remains at 8 mmol/L, even though both started with the same level.
+
+The MIMIC-III database contains serial lactate measurements throughout the first 24 hours. Extracting these values would enable calculation of lactate clearance rates, identification of patients with rising versus falling trajectories, and time-to-normalization analysis. Mixed-effects models or generalized estimating equations could account for repeated measurements within patients.
+
+### Disease Specificity
+
+The current cohort includes all ICU patients regardless of admission diagnosis. Lactate elevation has different causes and prognostic implications across conditions. In septic shock, elevated lactate reflects tissue hypoperfusion and anaerobic metabolism. In seizure patients, it represents increased muscular activity. In liver failure, impaired lactate clearance may predominate over increased production.
+The database contains ICD-9 diagnosis codes that would allow restriction to septic shock patients specifically. This focused analysis would be more clinically relevant and align with the study title. Sepsis-3 criteria could also be approximated using SOFA scores combined with infection indicators.
+
+### Unmeasured Confounding
+
+The analysis lacked critical ICU variables. Severity of illness scores (SOFA, APACHE II) provide validated measures of overall patient acuity. Information about mechanical ventilation, vasopressor administration, and fluid resuscitation would clarify whether lactate predicts mortality independent of these interventions. Admission source (emergency department, operating room, hospital floor) influences baseline risk.
+These variables exist in MIMIC-III tables shown in the database schema but were not extracted for this analysis. Including them would strengthen causal inference and allow comparison of lactate's predictive value against established severity scores.
+
+### Survival Analysis Methods
+
+The study examined ICU mortality as a binary outcome. Survival analysis methods would provide additional insights. Cox proportional hazards models could assess whether elevated lactate accelerates time to death. Kaplan-Meier curves stratified by lactate levels would visualize survival trajectories. Analysis of 28-day mortality—a standard critical care endpoint—would facilitate comparison with published literature.
+Hospital length of stay and ventilator-free days represent important secondary outcomes that measure not just survival but quality of survival. These endpoints could be analyzed using competing risks methods.
+
+
+***
+
+\newpage
+
+# Next Steps
+
+## Recommended statistical enhancements
+
+### Nonlinear modeling
+
+The current analysis categorized lactate into three groups and also modeled it as a continuous variable. However, restricted cubic splines would capture nonlinear dose-response relationships without imposing arbitrary categories. This approach could identify critical thresholds where small increases in lactate lead to large increases in mortality risk.
+
+Such analysis might reveal, for example, that mortality risk increases gradually from 2 to 4 mmol/L but accelerates sharply above 4 mmol/L. This would provide specific targets for clinical intervention.
+
+### Propensity score methods
+
+Patients with elevated lactate differ systematically from those with normal lactate in ways beyond measured confounders. Propensity score matching could create balanced cohorts by pairing each high-lactate patient with a similar normal-lactate patient based on age, sex, and other characteristics.
+Analyzing mortality differences in this matched cohort would provide stronger evidence for a causal relationship between lactate and death, reducing bias from unmeasured confounding.
+
+### Sensitivity analysis
+
+Given substantial missing data for some variables, multiple imputation would test whether findings depend on how missing values are handled. Creating multiple plausible datasets with imputed values and pooling results across them would demonstrate whether the lactate-mortality association is robust or sensitive to missing data assumptions.
+
+### Interaction Analysis
+
+The study identified age as an effect modifier but did not fully characterize this interaction. Formal interaction terms would quantify how much the lactate effect differs across age groups. Similar analyses for sex, organ dysfunction severity, and admission diagnosis would reveal whether lactate is universally prognostic or only in specific subgroups.
+
+### Clinical Utility Metrics
+
+Net reclassification improvement and decision curve analysis would quantify whether adding lactate to risk models improves clinical decision-making. These metrics translate statistical associations into practical benefits for patient care.
+
+* Phase 1: Temporal Analysis
+
+Extract all lactate measurements in the first 24 hours. Calculate clearance rates at 6, 12, and 24 hours. Classify patients as having improving, stable, or worsening trajectories. Test whether clearance predicts mortality independent of initial lactate level.
+
+* Phase 2: Sepsis Cohort
+
+Identify septic shock patients using ICD-9 codes and clinical criteria. Repeat all analyses in this focused population. Compare lactate performance against SOFA scores and other sepsis biomarkers.
+
+* Phase 3: Comprehensive Adjustment
+
+Extract SOFA scores, mechanical ventilation status, vasopressor use, and fluid volumes. Build multivariable models incorporating these confounders. Assess whether lactate provides independent prognostic information.
+
+* Phase 4: Validation
+
+Split data temporally (early years for training, later years for testing). Assess whether models maintain performance in the validation period. Evaluate calibration—whether predicted probabilities match observed mortality rates.
+
+* Phase 5: Clinical Translation
+
+Develop a simplified risk score combining lactate with readily available variables. Create decision thresholds that balance sensitivity and specificity for clinical use. Design implementation strategies for integrating findings into practice.
+
+## Limitations
+
+This retrospective study cannot establish causation. Elevated lactate may directly contribute to mortality, or it may simply mark severe illness. Unmeasured confounding likely remains despite statistical adjustment. The single-center cohort from 2001-2012 may not represent current ICU practice.
+Missing data for several potentially important variables limited multivariable modeling. The analysis focused on all-cause ICU mortality without examining specific mechanisms of death.
+
+
+
+***
+
+\newpage
+
+
 
 ## Final thoughts
 
